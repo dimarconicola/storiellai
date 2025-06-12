@@ -17,6 +17,7 @@ models/
 models/*.gguf
 
 # Removed online-specific files and directories
+src/box_offline.py # Add old name to gitignore if it was ever committed with this name
 src/box.py
 src/utils/story_gen.py
 src/utils/tts.py

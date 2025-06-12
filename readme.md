@@ -141,7 +141,7 @@ Storyteller Box is a small bedside companion that **tells pre-recorded Italian f
         After=network.target sound.target
 
         [Service]
-        ExecStart=/usr/bin/python3 /home/pi/storiellai/src/box_offline.py
+        ExecStart=/usr/bin/python3 /home/pi/storiellai/src/box.py
         WorkingDirectory=/home/pi/storiellai/src
         StandardOutput=inherit
         StandardError=inherit
@@ -207,7 +207,7 @@ The offline version relies on pre-recorded audio files and JSON configurations.
 
 ## Usage
 
-1.  **Power On:** Connect the power supply. The system should boot, and the `box_offline.py` script will start (if set up as a service). The LED button might pulse to indicate it's ready.
+1.  **Power On:** Connect the power supply. The system should boot, and the `box.py` script will start (if set up as a service). The LED button might pulse to indicate it's ready.
 2.  **Place Card:** Place an NFC card on the reader.
 3.  **Listen:** The story associated with the card will begin playing with background music.
 4.  **Button Controls:**
@@ -251,7 +251,7 @@ storiellai/
 ├── readme.md              # This file
 ├── .gitignore             # Files to ignore in git
 ├── src/
-│   ├── box_offline.py     # Main script for the offline storytelling box
+│   ├── box.py             # Main script for the offline storytelling box
 │   ├── hardware/
 │   │   └── hal.py         # Hardware Abstraction Layer (UIDReader, Button, etc.) + mocks
 │   ├── utils/
@@ -270,5 +270,3 @@ storiellai/
 │       └── parent_config.py
 └── requirements.txt       # Python dependencies (to be generated)
 ```
-
----
