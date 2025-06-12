@@ -1,0 +1,77 @@
+{
+  "id": "000004",
+  "character": "Marta Lingalumaca, la bimba dalla lingua trasformata in lumaca parlante",
+  "location": "Il Villaggio delle Parole Storte, dove le insegne cambiano sillabe",
+  "stories": [
+    {
+      "id": 1,
+      "title": "Il Mistero della NALU Splendente",
+      "tone": "misterioso",
+      "length_words": 356,
+      "audio": "audio/000004/1.mp3"
+    },
+    {
+      "id": 2,
+      "title": "La Festa della STA FE",
+      "tone": "avventuroso",
+      "length_words": 361,
+      "audio": "audio/000004/2.mp3"
+    },
+    {
+      "id": 3,
+      "title": "Il Pane che sa di NAPE",
+      "tone": "divertente",
+      "length_words": 352,
+      "audio": "audio/000004/3.mp3"
+    },
+    {
+      "id": 4,
+      "title": "Un Pomeriggio al DINO GIAR",
+      "tone": "calmo",
+      "length_words": 346,
+      "audio": "audio/000004/4.mp3"
+    },
+    {
+      "id": 5,
+      "title": "La Ninna Nanna di Luma",
+      "tone": "tenero",
+      "length_words": 349,
+      "audio": "audio/000004/5.mp3"
+    },
+    {
+      "id": 6,
+      "title": "Un Gusto di TOGELA",
+      "tone": "divertente",
+      "length_words": 358,
+      "audio": "audio/000004/6.mp3"
+    },
+    {
+      "id": 7,
+      "title": "Il Mistero della CUOSLA",
+      "tone": "misterioso",
+      "length_words": 347,
+      "audio": "audio/000004/7.mp3"
+    },
+    {
+      "id": 8,
+      "title": "La Storia della TECA BIBLIO",
+      "tone": "calmo",
+      "length_words": 353,
+      "audio": "audio/000004/8.mp3"
+    },
+    {
+      "id": 9,
+      "title": "L'Attraversamento del TEPON",
+      "tone": "avventuroso",
+      "length_words": 366,
+      "audio": "audio/000004/9.mp3"
+    },
+    {
+      "id": 10,
+      "title": "Il Ritorno a SACA",
+      "tone": "calmo",
+      "length_words": 341,
+      "audio": "audio/000004/10.mp3"
+    }
+  ]
+}

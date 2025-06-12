@@ -1,0 +1,77 @@
+{
+  "id": "000005",
+  "character": "Signor Cacca Birichina, minuscolo e profumatissimo (sorpresa!)",
+  "location": "Il Bagno Magico con scivoli d’acqua e carta igienica arcobaleno",
+  "stories": [
+    {
+      "id": 1,
+      "title": "Il mattino delle bollicine gentili",
+      "tone": "calmo",
+      "length_words": 350,
+      "audio": "audio/000005/1.mp3"
+    },
+    {
+      "id": 2,
+      "title": "La discesa dello Scivolo Turbinante",
+      "tone": "avventuroso",
+      "length_words": 350,
+      "audio": "audio/000005/2.mp3"
+    },
+    {
+      "id": 3,
+      "title": "La festa dei Rotoli Canterini",
+      "tone": "divertente",
+      "length_words": 350,
+      "audio": "audio/000005/3.mp3"
+    },
+    {
+      "id": 4,
+      "title": "Il pomeriggio della Pioggia di Lavanda",
+      "tone": "calmo",
+      "length_words": 350,
+      "audio": "audio/000005/4.mp3"
+    },
+    {
+      "id": 5,
+      "title": "Il riflesso nella Vasca di Opale",
+      "tone": "misterioso",
+      "length_words": 350,
+      "audio": "audio/000005/5.mp3"
+    },
+    {
+      "id": 6,
+      "title": "La lacrimuccia del Rubinetto Timido",
+      "tone": "tenero",
+      "length_words": 350,
+      "audio": "audio/000005/6.mp3"
+    },
+    {
+      "id": 7,
+      "title": "Missione: Anatroccolo di Gomma",
+      "tone": "avventuroso",
+      "length_words": 350,
+      "audio": "audio/000005/7.mp3"
+    },
+    {
+      "id": 8,
+      "title": "Il riposo sul Soffione-Nuvola",
+      "tone": "calmo",
+      "length_words": 350,
+      "audio": "audio/000005/8.mp3"
+    },
+    {
+      "id": 9,
+      "title": "Il Segreto della Nebbia Color Indaco",
+      "tone": "misterioso",
+      "length_words": 350,
+      "audio": "audio/000005/9.mp3"
+    },
+    {
+      "id": 10,
+      "title": "La Sbuffata Schiumosa del Bidet-Fontana",
+      "tone": "divertente",
+      "length_words": 350,
+      "audio": "audio/000005/10.mp3"
+    }
+  ]
+}

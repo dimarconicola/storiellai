@@ -1,0 +1,77 @@
+{
+  "id": "000006",
+  "character": "Luna la Riparatrice",
+  "location": "L’Officina delle Meraviglie piena di ingranaggi colorati",
+  "stories": [
+    {
+      "id": 1,
+      "title": "Il ticchettio del mattino dorato",
+      "tone": "calmo",
+      "length_words": 350,
+      "audio": "audio/000006/1.mp3"
+    },
+    {
+      "id": 2,
+      "title": "La corsa sulla Cinghia-Arcobaleno",
+      "tone": "avventuroso",
+      "length_words": 350,
+      "audio": "audio/000006/2.mp3"
+    },
+    {
+      "id": 3,
+      "title": "Il martello che faceva ah-ah",
+      "tone": "divertente",
+      "length_words": 350,
+      "audio": "audio/000006/3.mp3"
+    },
+    {
+      "id": 4,
+      "title": "Il pomeriggio del vento gentile",
+      "tone": "calmo",
+      "length_words": 350,
+      "audio": "audio/000006/4.mp3"
+    },
+    {
+      "id": 5,
+      "title": "L’enigma della Chiave Invisibile",
+      "tone": "misterioso",
+      "length_words": 350,
+      "audio": "audio/000006/5.mp3"
+    },
+    {
+      "id": 6,
+      "title": "La missione del bullone volante",
+      "tone": "avventuroso",
+      "length_words": 350,
+      "audio": "audio/000006/6.mp3"
+    },
+    {
+      "id": 7,
+      "title": "Il piccolo Cuore di Metallo",
+      "tone": "tenero",
+      "length_words": 350,
+      "audio": "audio/000006/7.mp3"
+    },
+    {
+      "id": 8,
+      "title": "La danza degli ingranaggi sonnolenti",
+      "tone": "calmo",
+      "length_words": 350,
+      "audio": "audio/000006/8.mp3"
+    },
+    {
+      "id": 9,
+      "title": "La confusa Parata dei Robotini",
+      "tone": "divertente",
+      "length_words": 350,
+      "audio": "audio/000006/9.mp3"
+    },
+    {
+      "id": 10,
+      "title": "Il segreto del Banco Sussurrante",
+      "tone": "misterioso",
+      "length_words": 350,
+      "audio": "audio/000006/10.mp3"
+    }
+  ]
+}

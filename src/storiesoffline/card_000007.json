@@ -1,0 +1,77 @@
+{
+  "id": "0000007",
+  "character": "Gigio il Criceto Inventore che aggiusta tutto con mini-chiavi inglesi",
+  "location": "La Soffitta dei Bottoni Perduti",
+  "stories": [
+    {
+      "id": 1,
+      "title": "La Corsa Sbilenca",
+      "tone": "divertente",
+      "length_words": 353,
+      "audio": "audio/000007/1.mp3"
+    },
+    {
+      "id": 2,
+      "title": "Il Mistero del Ticchettio",
+      "tone": "misterioso",
+      "length_words": 348,
+      "audio": "audio/000007/2.mp3"
+    },
+    {
+      "id": 3,
+      "title": "Un Ponte per il Ragnetto",
+      "tone": "avventuroso",
+      "length_words": 363,
+      "audio": "audio/000007/3.mp3"
+    },
+    {
+      "id": 4,
+      "title": "La Melodia dei Bottoni di Perla",
+      "tone": "calmo",
+      "length_words": 344,
+      "audio": "audio/000007/4.mp3"
+    },
+    {
+      "id": 5,
+      "title": "Una Casa per il Bottone Solitario",
+      "tone": "tenero",
+      "length_words": 357,
+      "audio": "audio/000007/5.mp3"
+    },
+    {
+      "id": 6,
+      "title": "Il Percorso Luminoso",
+      "tone": "misterioso",
+      "length_words": 349,
+      "audio": "audio/000007/6.mp3"
+    },
+    {
+      "id": 7,
+      "title": "L'Organizzazione Perfetta",
+      "tone": "calmo",
+      "length_words": 341,
+      "audio": "audio/000007/7.mp3"
+    },
+    {
+      "id": 8,
+      "title": "La Spedizione dei Bottoni d'Ottone",
+      "tone": "avventuroso",
+      "length_words": 368,
+      "audio": "audio/000007/8.mp3"
+    },
+    {
+      "id": 9,
+      "title": "Il Lancia-Bottoni",
+      "tone": "divertente",
+      "length_words": 348,
+      "audio": "audio/000007/9.mp3"
+    },
+    {
+      "id": 10,
+      "title": "Il Carillon della Pioggia",
+      "tone": "calmo",
+      "length_words": 355,
+      "audio": "audio/000007/10.mp3"
+    }
+  ]
+}

@@ -1,0 +1,77 @@
+{
+  "id": "000009",
+  "character": "Uga la Lumaca-postina, lenta ma instancabile",
+  "location": "Il Bosco delle Lettere Profumate dove gli alberi spediscono messaggi",
+  "stories": [
+    {
+      "id": 1,
+      "title": "Il risveglio dei tronchi sussurranti",
+      "tone": "calmo",
+      "length_words": 350,
+      "audio": "audio/000009/1.mp3"
+    },
+    {
+      "id": 2,
+      "title": "La corsa sul Sentiero delle Piume",
+      "tone": "avventuroso",
+      "length_words": 350,
+      "audio": "audio/000009/2.mp3"
+    },
+    {
+      "id": 3,
+      "title": "Il pacco del giorno dei rimbalzi",
+      "tone": "divertente",
+      "length_words": 350,
+      "audio": "audio/000009/3.mp3"
+    },
+    {
+      "id": 4,
+      "title": "La siesta sotto la Quercia-Pergamena",
+      "tone": "calmo",
+      "length_words": 350,
+      "audio": "audio/000009/4.mp3"
+    },
+    {
+      "id": 5,
+      "title": "La pergamena che sussurrava numeri",
+      "tone": "misterioso",
+      "length_words": 350,
+      "audio": "audio/000009/5.mp3"
+    },
+    {
+      "id": 6,
+      "title": "Il guado delle Parole-Spuma",
+      "tone": "avventuroso",
+      "length_words": 350,
+      "audio": "audio/000009/6.mp3"
+    },
+    {
+      "id": 7,
+      "title": "La sera del profumo d’ambra",
+      "tone": "calmo",
+      "length_words": 350,
+      "audio": "audio/000009/7.mp3"
+    },
+    {
+      "id": 8,
+      "title": "La lettera-sorpresa per Nonna Chiocciolina",
+      "tone": "tenero",
+      "length_words": 350,
+      "audio": "audio/000009/8.mp3"
+    },
+    {
+      "id": 9,
+      "title": "Il sentiero delle Ombre-Lettera",
+      "tone": "misterioso",
+      "length_words": 350,
+      "audio": "audio/000009/9.mp3"
+    },
+    {
+      "id": 10,
+      "title": "Il Festival degli Alberi-Barzelletta",
+      "tone": "divertente",
+      "length_words": 350,
+      "audio": "audio/000009/10.mp3"
+    }
+  ]
+}

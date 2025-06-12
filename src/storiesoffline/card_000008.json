@@ -1,0 +1,77 @@
+{
+  "id": "000008",
+  "character": "Olivia la Dino-pittrice (piccolo Oviraptor con berretto d’artista)",
+  "location": "Il Museo Sotto-Sabbia (gallerie scavate dai dinosauri)",
+  "stories": [
+    {
+      "id": 1,
+      "title": "Il Ritratto Saltellante",
+      "tone": "divertente",
+      "length_words": 358,
+      "audio": "audio/000008/1.mp3"
+    },
+    {
+      "id": 2,
+      "title": "La Galleria del Silenzio",
+      "tone": "calmo",
+      "length_words": 345,
+      "audio": "audio/000008/2.mp3"
+    },
+    {
+      "id": 3,
+      "title": "I Segreti della Parete Antica",
+      "tone": "misterioso",
+      "length_words": 361,
+      "audio": "audio/000008/3.mp3"
+    },
+    {
+      "id": 4,
+      "title": "La Pittura a Spruzzo",
+      "tone": "divertente",
+      "length_words": 355,
+      "audio": "audio/000008/4.mp3"
+    },
+    {
+      "id": 5,
+      "title": "La Piuma per l'Amico Triste",
+      "tone": "tenero",
+      "length_words": 351,
+      "audio": "audio/000008/5.mp3"
+    },
+    {
+      "id": 6,
+      "title": "In Cerca del Blu Deserto",
+      "tone": "avventuroso",
+      "length_words": 367,
+      "audio": "audio/000008/6.mp3"
+    },
+    {
+      "id": 7,
+      "title": "L'Arcobaleno Fugace",
+      "tone": "misterioso",
+      "length_words": 354,
+      "audio": "audio/000008/7.mp3"
+    },
+    {
+      "id": 8,
+      "title": "Il Giardino di Sabbia Colorata",
+      "tone": "calmo",
+      "length_words": 349,
+      "audio": "audio/000008/8.mp3"
+    },
+    {
+      "id": 9,
+      "title": "La Lezione dei Colori Magici",
+      "tone": "calmo",
+      "length_words": 352,
+      "audio": "audio/000008/9.mp3"
+    },
+    {
+      "id": 10,
+      "title": "L'Alluvione e la Nuova Entrata",
+      "tone": "avventuroso",
+      "length_words": 369,
+      "audio": "audio/000008/10.mp3"
+    }
+  ]
+}

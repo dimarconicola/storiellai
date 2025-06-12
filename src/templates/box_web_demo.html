@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>Storyteller Box Web Demo</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #eaf7f7;
+            color: #222;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+        }
+        .outer-controls {
+            margin-top: 40px;
+            margin-bottom: 24px;
+        }
+        .random-btn, .error-btn {
+            margin: 0 8px;
+            padding: 12px 28px;
+            font-size: 1.1em;
+            border-radius: 24px;
+            border: none;
+            background: #b2ecec;
+            color: #222;
+            cursor: pointer;
+            box-shadow: 0 2px 8px #b2ecec55;
+            transition: background 0.2s;
+        }
+        .random-btn:active, .error-btn:active {
+            background: #7fdede;
+        }
+        .info-panel {
+            margin: 0 auto 18px auto;
+            max-width: 420px;
+            text-align: center;
+        }
+        .state-label {
+            font-size: 1.2em;
+            margin: 0 0 4px 0;
+            color: #3c70b4;
+            font-weight: bold;
+            letter-spacing: 0.03em;
+        }
+        .card-label {
+            font-size: 1.1em;
+            margin: 0 0 8px 0;
+            color: #444;
+        }
+        .box {
+            width: 340px;
+            height: 340px;
+            margin: 0 auto;
+            background: #3566A7;
+            border-radius: 48px;
+            box-shadow: 0 8px 32px #0002, 0 2px 8px #b2ecec88 inset;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .action-led-btn {
+            width: 150px; height: 150px; border-radius: 50%;
+            background: #fff;
+            box-shadow:
+                0 0 60px 10px #b2ecec,
+                0 0 0 8px #eaf7f7,
+                0 4px 32px #b2ecec88 inset;
+            opacity: 0.15;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3.8em;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            transition: opacity 0.1s, background 0.2s, box-shadow 0.2s;
+            outline: none;
+            position: absolute;
+            left: 50%; top: 50%;
+            transform: translate(-50%, -50%);
+            user-select: none;
+        }
+        .action-led-btn:active {
+            background: #b2ecec;
+            box-shadow: 0 0 40px 8px #7fdede, 0 2px 8px #b2ecec88 inset;
+        }
+        .footer {
+            margin-top: 32px;
+            font-size: 0.95em;
+            color: #aaa;
+        }
+        @media (max-width: 400px) {
+            .box { width: 95vw; height: 95vw; }
+            .action-led-btn { width: 38vw; height: 38vw; font-size: 2.5em; }
+        }
+    </style>
+</head>
+<body>
+    <div class="outer-controls">
+        <button class="random-btn" onclick="introduceRandomCard()">🎴 Introduci una carta casuale</button>
+        <button class="error-btn" onclick="setState('ERROR')">⚠️ Simula errore</button>
+    </div>
+    <div class="info-panel">
+        <div class="state-label">Stato: <span id="state">IDLE</span></div>
+        <div class="card-label" id="cardLabel"></div>
+    </div>
+    <div class="box">
+        <button class="action-led-btn" id="actionBtn" title="Azione">
+            <span id="actionIcon">&#9658;</span>
+        </button>
+    </div>
+    <div class="footer">
+        <b>Storyteller Box Web Demo</b> &mdash; Simula LED, bottone, NFC card e audio<br>
+        <span style="font-size:0.9em;">Premi il cerchio per start/pause/long-press.<br>Premi il pulsante carta per simulare una nuova storia.</span>
+    </div>
+    <!-- Audio elements (hidden) -->
+    <audio id="storyAudio"></audio>
+    <audio id="bgmAudio" loop></audio>
+    <script>
+let state = "IDLE";
+let led = document.getElementById('actionBtn');
+let stateSpan = document.getElementById('state');
+let actionBtn = document.getElementById('actionBtn');
+let actionIcon = document.getElementById('actionIcon');
+let cardLabel = document.getElementById('cardLabel');
+let timer = null;
+let frame = null;
+let blinkCount = 0;
+let longPressTimeout = null;
+let cardId = null;
+let lastCardId = null;
+let isPaused = false;
+
+const cards = [
+    { name: "Principessa Chiomadoro", audio: "../audio/000000/1.mp3", bgm: "../bgm/calmo_loop.mp3" },
+    { name: "Prof. Rex il Dinosauro", audio: "../audio/000001/1.mp3", bgm: "../bgm/avventuroso_loop.mp3" }
+];
+
+let storyAudio = document.getElementById('storyAudio');
+let bgmAudio = document.getElementById('bgmAudio');
+
+function clearTimers() {
+    if (timer) {
+        clearTimeout(timer);
+        timer = null;
+    }
+    if (frame) {
+        cancelAnimationFrame(frame);
+        frame = null;
+    }
+    if (longPressTimeout) {
+        clearTimeout(longPressTimeout);
+        longPressTimeout = null;
+    }
+}
+
+function stopAudio() {
+    storyAudio.pause();
+    storyAudio.currentTime = 0;
+    bgmAudio.pause();
+    bgmAudio.currentTime = 0;
+}
+
+function setState(newState) {
+    state = newState;
+    stateSpan.textContent = state;
+    clearTimers();
+    led.style.background = "#fff";
+    led.style.opacity = 0.15;
+    updateActionIcon();
+    runState();
+}
+
+function runState() {
+    switch(state) {
+        case "BOOTING":
+            stopAudio();
+            breathing(5, 1.0);
+            timer = setTimeout(() => setState("IDLE"), 5000);
+            break;
+        case "IDLE":
+            stopAudio();
+            led.style.opacity = 0.15;
+            cardLabel.textContent = "";
+            break;
+        case "CARD_READ":
+            stopAudio();
+            blinkPattern(2, 50, 150, () => setState("LOADING"));
+            break;
+        case "LOADING":
+            breathing(5, 1.0);
+            timer = setTimeout(() => setState("PLAYING"), 5000);
+            break;
+        case "PLAYING":
+            playAudio();
+            breathing(8, 0.8);
+            break;
+        case "PAUSED":
+            pauseAudio();
+            breathing(2.5, 1);
+            break;
+        case "LONG_PRESS":
+            if (lastCardId !== null) {
+                cardLabel.textContent = "Nuova storia da: " + cards[lastCardId].name;
+            }
+            breathing(1, 1.0);
+            timer = setTimeout(() => {
+                setState("CARD_READ");
+            }, 2000);
+            break;
+        case "END":
+            stopAudio();
+            blinkPattern(3, 100, 250, () => setState("IDLE"));
+            break;
+        case "ERROR":
+            stopAudio();
+            blinkPattern(Infinity, 62.5, 62.5);
+            timer = setTimeout(() => setState("IDLE"), 3000);
+            break;
+    }
+}
+
+function breathing(period_s, maxOpacity) {
+    let period = period_s * 1000;
+    let start = Date.now();
+    function animate() {
+        let t = ((Date.now() - start) % period) / period;
+        let op = 0.15 + (maxOpacity - 0.15) * 0.5 * (1 - Math.cos(2 * Math.PI * t));
+        led.style.opacity = op;
+        if (state === getCurrentState()) frame = requestAnimationFrame(animate);
+    }
+    animate();
+}
+
+function blinkPattern(times, onMs, offMs, callback) {
+    blinkCount = 0;
+    function blink() {
+        if (times !== Infinity && blinkCount >= times) {
+            led.style.opacity = 0.15;
+            if (callback) callback();
+            return;
+        }
+        led.style.opacity = 1.0;
+        timer = setTimeout(() => {
+            led.style.opacity = 0.15;
+            blinkCount++;
+            timer = setTimeout(blink, offMs);
+        }, onMs);
+    }
+    blink();
+}
+
+function getCurrentState() {
+    return state;
+}
+
+// Action button logic
+actionBtn.onmousedown = function() {
+    if (state === "PLAYING" || state === "PAUSED") {
+        longPressTimeout = setTimeout(() => {
+            setState("LONG_PRESS");
+        }, 1200); // 1.2s for long press
+    }
+};
+actionBtn.onmouseup = function() {
+    if (longPressTimeout) {
+        clearTimeout(longPressTimeout);
+        longPressTimeout = null;
+        if (state === "PLAYING") {
+            setState("PAUSED");
+        } else if (state === "PAUSED") {
+            setState("PLAYING");
+        }
+    }
+};
+actionBtn.onclick = function(e) {
+    // Prevent click event if it was a long press
+    if (longPressTimeout === null && (state === "PLAYING" || state === "PAUSED")) {
+        // Already handled in onmouseup
+        return;
+    }
+    if (state === "IDLE") {
+        introduceRandomCard();
+    }
+    if (state === "END") {
+        setState("IDLE");
+    }
+};
+
+function updateActionIcon() {
+    if (state === "PLAYING") {
+        actionIcon.innerHTML = "&#10073;&#10073;"; // Pause
+    } else if (state === "PAUSED") {
+        actionIcon.innerHTML = "&#9658;"; // Play
+    } else if (state === "IDLE" || state === "END") {
+        actionIcon.innerHTML = "&#9658;"; // Play
+    } else {
+        actionIcon.innerHTML = "&#9675;"; // Circle for other states
+    }
+}
+
+// Simulate NFC card tap
+function introduceRandomCard() {
+    if (state !== "IDLE" && state !== "END") return;
+    cardId = Math.floor(Math.random() * cards.length);
+    lastCardId = cardId;
+    cardLabel.textContent = "Carta: " + cards[cardId].name;
+    setState("CARD_READ");
+}
+
+// Audio logic
+function playAudio() {
+    if (lastCardId === null) return;
+    let story = cards[lastCardId];
+    if (!isPaused) {
+        storyAudio.src = story.audio;
+        storyAudio.currentTime = 0;
+        bgmAudio.src = story.bgm;
+        bgmAudio.currentTime = 0;
+    }
+    bgmAudio.volume = 0.25;
+    storyAudio.volume = 1.0;
+    bgmAudio.play();
+    storyAudio.play();
+    storyAudio.onended = () => {
+        setState("END");
+    };
+    isPaused = false;
+}
+function pauseAudio() {
+    storyAudio.pause();
+    bgmAudio.pause();
+    isPaused = true;
+}
+
+// Initialize
+setState("BOOTING");
+    </script>
+</body>
+</html>
