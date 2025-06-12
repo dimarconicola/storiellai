@@ -13,4 +13,14 @@ test.wav
 .vscode/
 
 # Model files
+models/
 models/*.gguf
+
+# Removed online-specific files and directories
+src/box.py
+src/utils/story_gen.py
+src/utils/tts.py
+src/config/tts_config.py
+src/config/parent_config.py
+src/fsm_web_demo.py
+src/templates/
