@@ -1,6 +1,8 @@
 # Storyteller Box (Offline Edition)
 
-> **A fully offline, NFC-triggered storytelling device for kids – featuring pre-recorded narration and background music.**
+> **A fully offline, NFC-triggered storytelling device for kids – featuring pre-recorded narration and background music. This is the primary focus of the project.**
+>
+> *The repository also includes components for an online-capable version (utilizing `box.py`, LLM, and TTS), serving as a platform for future expandability, testing AI-driven storytelling, and for developers interested in exploring online features.*
 
 ---
 
@@ -21,12 +23,14 @@
 
 ## Overview
 
-Storyteller Box is a small bedside companion that **tells pre-recorded Italian fairy tales** triggered by NFC cards. Children place an NFC-tagged card on the lid, and the box plays a corresponding story with matching background music. The device is **fully offline**, with all narration and music pre-loaded onto an SD card.
+Storyteller Box is a small bedside companion that **tells pre-recorded Italian fairy tales** triggered by NFC cards. Children place an NFC-tagged card on the lid, and the box plays a corresponding story with matching background music. The device is **fully offline**, with all narration and music pre-loaded onto an SD card. This offline version is the main deliverable of the project.
 
-- **No internet required:** All stories and background music are pre-recorded and stored locally.
+- **No internet required:** All stories and background music are pre-recorded and stored locally for the primary offline experience.
 - **Simple controls:** A single illuminated button handles play, pause, and shutdown.
 - **Calm time logic:** Automatically selects calm stories during bedtime hours.
 - **Parent-friendly:** Easily add new stories and music by copying files to the SD card.
+
+The repository also contains the `box.py` script and related modules (like `story_gen.py` and `tts.py`) which enable online functionalities, including AI-powered story generation and cloud-based Text-to-Speech. These are maintained for developers interested in experimenting with an online version or for future enhancements.
 
 ---
 
@@ -72,11 +76,17 @@ stateDiagram-v2
 
 ## Software Stack
 
+**Core Offline Version (`box_offline.py`):**
 - **Python 3.11** (matches Raspberry Pi OS Bookworm)
-- **llama-cpp-python** with **TinyLlama-1.1 B Q4_K_M** (`models/`)
-- **OpenAI TTS API** – Italian voice
-- **Flask** + HTMX for the web dashboard
-- **systemd** services: `reader.service`, `engine.service`, `dashboard.service`
+- **Pygame** for audio playback
+- **`RPi.GPIO`** and **`spidev`** for hardware interaction (or mock equivalents)
+
+**Experimental Online Version (`box.py`) & Developer Tools:**
+- **Python 3.11**
+- **llama-cpp-python** with **TinyLlama-1.1 B Q4_K_M** (`models/`) for on-device story generation (optional)
+- **OpenAI TTS API** – Italian voice (optional, requires API key)
+- **Flask** + HTMX for the web dashboard (optional, for managing an online version)
+- **systemd** services: `reader.service`, `engine.service`, `dashboard.service` (primarily for a more complex online setup)
 - **Poetry** + **pre-commit** for dependency & lint hygiene
 - **GitHub Actions** CI
 
@@ -86,13 +96,14 @@ stateDiagram-v2
 
 ```
 storyteller-box/
-├── models/                # TinyLlama .gguf, OpenAI TTS configs (git-ignored)
+├── models/                # TinyLlama .gguf (git-ignored, for experimental online version)
 ├── src/
-│   ├── story_gen.py       # LLM wrapper
-│   ├── tts.py             # OpenAI TTS helper
-│   ├── hal.py             # UIDReader, Button + mocks + Pi impls
-│   ├── box.py             # state machine
-│   └── dashboard/         # Flask app (templates, static)
+│   ├── box_offline.py     # Main script for the offline storytelling box
+│   ├── story_gen.py       # LLM wrapper (for experimental online version)
+│   ├── tts.py             # OpenAI TTS helper (for experimental online version)
+│   ├── hal.py             # Hardware Abstraction Layer (UIDReader, Button, etc.) + mocks + Pi impls
+│   ├── box.py             # State machine for the experimental online version
+│   └── dashboard/         # Flask app (templates, static) (for experimental online version)
 ├── scripts/
 │   ├── bootstrap_pi.sh    # one-shot setup
 │   ├── install.sh         # venv & deps on Pi

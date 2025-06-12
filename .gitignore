@@ -10,4 +10,7 @@ output.wav
 test.wav
 
 # VS Code settings (optional)
-.vscode/models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf
+.vscode/
+
+# Model files
+models/*.gguf
