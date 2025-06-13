@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.nicoladimarco.storyteller</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/python3</string>
+        <string>/Users/nicoladimarco/code/storiellai/src/box.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/nicoladimarco/code/storiellai</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/nicoladimarco/code/storiellai/storyteller.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/nicoladimarco/code/storiellai/storyteller_error.log</string>
+</dict>
+</plist>

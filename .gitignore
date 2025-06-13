@@ -25,3 +25,7 @@ src/config/tts_config.py
 src/config/parent_config.py
 src/fsm_web_demo.py
 src/templates/
+
+# Ignore runtime logs
+storyteller.log
+storyteller_error.log
