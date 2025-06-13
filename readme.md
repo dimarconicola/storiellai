@@ -38,13 +38,38 @@ Storyteller Box is a small bedside companion that **tells pre-recorded Italian f
 ## How It Works
 
 1.  **NFC Card Scan:** The child places an NFC card on the box.
-2.  **Story Lookup:** The `box_offline.py` script reads the card's UID and looks up the corresponding story configuration in a JSON file located in `src/storiesoffline/`.
+2.  **Story Lookup:** The `box.py` script reads the card's UID and looks up the corresponding story configuration in a JSON file located in `src/storiesoffline/`.
 3.  **Audio Playback:**
     *   The script selects an appropriate background music track based on the story's defined "tone" (e.g., "calmo", "avventuroso").
     *   It plays the pre-recorded narration audio file for the selected story.
     *   `pygame` is used for audio mixing and playback.
 4.  **Button Control:** A single button allows the child to play/pause the current story or initiate a shutdown.
 5.  **LED Feedback:** The button's LED provides visual feedback (e.g., pulsing when ready, solid when playing).
+6.  **Modular Design:** The codebase is now modular, with utility functions and configuration constants moved to dedicated modules for better maintainability.
+
+---
+
+## Repo Layout
+
+```
+root/
+├── src/
+│   ├── box.py                # Main application logic
+│   ├── config/
+│   │   └── app_config.py     # Configuration constants (paths, GPIO pins, etc.)
+│   ├── utils/
+│   │   ├── audio_utils.py    # Audio engine and playback utilities
+│   │   ├── data_utils.py     # JSON and file utilities
+│   │   ├── led_utils.py      # LED pattern manager
+│   │   ├── time_utils.py     # Time-based logic utilities
+│   │   └── bgm_utils.py      # Background music utilities
+│   ├── hardware/             # Hardware abstraction layer
+│   └── storiesoffline/       # JSON files for NFC card story mappings
+├── models/                   # Pre-trained models (e.g., TinyLlama)
+├── audio/                    # Audio files (narration, BGM)
+├── requirements.txt          # Python dependencies
+└── readme.md                 # Project documentation
+```
 
 ---
 
@@ -65,7 +90,7 @@ Storyteller Box is a small bedside companion that **tells pre-recorded Italian f
 | NFC Cards/Tags        | NTAG215 or similar (compatible with PN532)       | 0.50-1 per card  |                                                                       |
 | Enclosure             | 3D printed or custom-made box                    | 5-20             | Material cost if 3D printing                                          |
 | **Optional:**         |                                                  |                  |                                                                       |
-| USB Sound Card        | If Pi\'s onboard audio is noisy                   | 5-10             |                                                                       |
+| USB Sound Card        | If Pi's onboard audio is noisy                   | 5-10             |                                                                       |
 | Soldering Iron & Tin  | For connecting components                        | -                | If not using breadboard/jumper wires for permanent connections        |
 | **Total Estimated:**  |                                                  | **50-100 EUR**   | Excluding optional items and tools                                    |
 
@@ -283,32 +308,3 @@ The offline version relies on pre-recorded audio files and JSON configurations.
 *   Support for multiple narrations per story part (e.g., different voices).
 *   Battery power option with low-battery warning/shutdown.
 *   "Shuffle all stories" mode, perhaps triggered by a special NFC card or a different button combination.
-
----
-
-## Repo Layout
-
-```
-storiellai/
-├── readme.md              # This file
-├── .gitignore             # Files to ignore in git
-├── src/
-│   ├── box.py             # Main script for the offline storytelling box
-│   ├── hardware/
-│   │   └── hal.py         # Hardware Abstraction Layer (UIDReader, Button, etc.) + mocks
-│   ├── utils/
-│   │   ├── __init__.py
-│   │   ├── bgm_utils.py   # Background music utilities
-│   │   └── story_utils.py # Story selection logic
-│   ├── audio/             # Pre-recorded narration MP3 files (organized by card UID)
-│   │   ├── 000000/
-│   │   │   └── 1.mp3
-│   │   └── ...
-│   ├── bgm/               # Background music loop MP3 files (e.g., calmo_loop.mp3)
-│   │   └── calmo_loop.mp3
-│   ├── storiesoffline/    # JSON files defining stories for each NFC card UID
-│   │   └── card_000000.json
-│   ├── config/            # Configuration files
-│   │   └── card_configs.py  # Story and card configurations (if not using individual JSONs)
-└── requirements.txt       # Python dependencies
-```
