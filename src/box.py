@@ -15,25 +15,21 @@ import time
 import traceback
 from pathlib import Path
 import pygame
-import sys  # For GPIO cleanup on exit
+import sys
+import threading  # Added for asynchronous loading
 from utils.log_utils import logger
 
 from hardware.hal import IS_RASPBERRY_PI, BUTTON_NO_EVENT, BUTTON_TAP, BUTTON_DOUBLE_TAP, BUTTON_LONG_PRESS
 from utils.time_utils import handle_battery_status
 from adafruit_mcp3xxx.analog_in import AnalogIn
 
-if IS_RASPBERRY_PI:
-    from hardware.hal import UIDReader, Button, VolumeControl
-    import RPi.GPIO as GPIO  # For cleanup
-else:
-    from hardware.hal import UIDReader, Button, VolumeControl
-
 # Import from utility modules
 from utils.audio_utils import (
     initialize_audio_engine, set_system_volume, preload_bgm, 
-    play_narration_with_bgm, test_audio_performance, play_error_sound
+    play_narration_with_bgm, test_audio_performance, play_error_sound,
+    preload_narration_async  # New async preloading function
 )
-from utils.data_utils import load_card_stories, verify_audio_files
+from utils.data_utils import load_card_stories, verify_audio_files, preload_card_data  # Added preload_card_data
 from utils.time_utils import is_calm_time, select_story_for_time
 from utils.led_utils import LedPatternManager
 from utils.bgm_utils import stop_bgm
@@ -43,6 +39,16 @@ from config.app_config import (
     STATE_IDLE, STATE_PLAYING, STATE_PAUSED, STATE_SHUTTING_DOWN,
     LED_OFF, LED_ON
 )
+
+# Hardware components
+if IS_RASPBERRY_PI:
+    from hardware.hal import UIDReader, Button, VolumeControl
+    import RPi.GPIO as GPIO  # For cleanup
+else:
+    from hardware.hal import UIDReader, Button, VolumeControl
+
+# Global flag for background loading
+background_loading_active = False
 
 # ============ MAIN APPLICATION ============
 def main():
@@ -55,6 +61,9 @@ def main():
     - Cleans up on exit
     """
     global master_volume_level
+    
+    # Fast audio engine initialization
+    start_time = time.time()
     if not initialize_audio_engine():
         logger.critical("Failed to initialize audio. Exiting.")
         if button:
@@ -62,84 +71,86 @@ def main():
             led_manager.set_pattern('blink', period=0.15, duty=0.5)
         play_error_sound()
         return
+    logger.info(f"Audio engine initialization took {(time.time() - start_time)*1000:.1f}ms")
     
+    # Hardware initialization (extracted to a function)
+    reader, button, volume_ctrl, adc = initialize_hardware()
+    
+    # Check if critical hardware components initialized properly
+    if reader is None or button is None or volume_ctrl is None:
+        logger.critical("Critical hardware components failed to initialize")
+        if button:
+            led_manager = LedPatternManager(button)
+            led_manager.set_pattern('blink', period=0.1, duty=0.5)
+        play_error_sound()
+        return
+    
+    # Set up LED manager
+    led_manager = LedPatternManager(button)
+    
+    # Start preloading BGM in main thread (critical for early response)
+    preload_start = time.time()
     preload_bgm()
+    logger.info(f"BGM preloading took {(time.time() - preload_start)*1000:.1f}ms")
+    
+    # Start background preloading thread for narrations
+    preload_thread = threading.Thread(target=background_preload, daemon=True)
+    preload_thread.start()
     
     current_card_uid = None
     current_story_data = None
     current_narration_path = None
     current_bgm_tone = None
     
-    # Hardware Initialization
-    reader = None
-    button = None
-    volume_ctrl = None
-    adc = None
+    state = STATE_IDLE
+    button.set_led(LED_ON)  # LED on when idle, ready
+    logger.info(f"System started, state: {state}")
+    logger.info(f"Running on {'Raspberry Pi' if IS_RASPBERRY_PI else 'Mock Hardware'}")
     
+    # Timing variables
+    last_volume_check_time = time.time()
+    last_battery_check_time = time.time()
+    last_loop_time = time.time()
+    
+    # Dynamic sleep time for main loop
+    target_loop_time = 0.02  # Target 50Hz for button responsiveness
+    
+    # Initial volume setting
+    master_volume_level = volume_ctrl.get_volume() 
+    set_system_volume(master_volume_level)
+    
+    # System booting up: fast breathing pattern
+    led_manager.set_pattern('breathing', period=1.0)  # Fast breathing for boot
+    time.sleep(1.0)  # Show boot pattern (reduced from 1.5s)
+    led_manager.set_pattern('breathing', period=2.5)  # Normal breathing for idle/ready
+    
+    # Calculate total startup time
+    total_startup_time = time.time() - start_time
+    logger.info(f"Total startup time: {total_startup_time*1000:.1f}ms")
+
     try:
-        if IS_RASPBERRY_PI:
-            # GPIO pins - MUST BE CONFIGURABLE OR MATCH ACTUAL WIRING
-            NFC_SPI_PORT = 0 
-            NFC_SPI_CS_PIN = 0 # CE0 for SPI0
-            NFC_IRQ_PIN = 25   # Example
-            NFC_RST_PIN = 17   # Example
-            BUTTON_PIN = 23
-            LED_PIN = 24
-            ADC_CHANNEL_VOLUME = 0 # MCP3008 channel for volume pot
-            reader = UIDReader(spi_port=NFC_SPI_PORT, spi_cs_pin=NFC_SPI_CS_PIN, irq_pin=NFC_IRQ_PIN, rst_pin=NFC_RST_PIN)
-            button = Button(button_pin=BUTTON_PIN, led_pin=LED_PIN)
-            volume_ctrl = VolumeControl(adc_channel=ADC_CHANNEL_VOLUME)
-            adc = AnalogIn()  # Initialize MCP3008 ADC
-        else:
-            reader = UIDReader()
-            button = Button()
-            volume_ctrl = VolumeControl()
-
-        # Hardware check: if any critical component failed, signal error
-        if reader is None or button is None or volume_ctrl is None:
-            logger.critical("Hardware initialization failed.")
-            if button:
-                led_manager = LedPatternManager(button)
-                led_manager.set_pattern('blink', period=0.1, duty=0.5)
-            play_error_sound()
-            return
-
-        state = STATE_IDLE
-        button.set_led(LED_ON) # LED on when idle, ready
-        logger.info(f"System started, state: {state}")
-        logger.info(f"Running on {'Raspberry Pi' if IS_RASPBERRY_PI else 'Mock Hardware'}")
-
-        last_volume_check_time = time.monotonic()
-        last_battery_check_time = time.monotonic()
-
-        # Initial volume setting
-        master_volume_level = volume_ctrl.get_volume() 
-        set_system_volume(master_volume_level)
-
-        # System booting up: fast breathing pattern
-        led_manager = LedPatternManager(button)
-        led_manager.set_pattern('breathing', period=1.0) # Fast breathing for boot
-        time.sleep(1.5)  # Show boot pattern for 1.5s
-        led_manager.set_pattern('breathing', period=2.5) # Normal breathing for idle/ready
-
         while state != STATE_SHUTTING_DOWN:
+            loop_start = time.time()
             led_manager.update()
-
-            # Volume control check (periodically)
-            if time.monotonic() - last_volume_check_time > 0.2: # Check 5 times a second
+            
+            # Dynamic timing for responsive interaction
+            current_time = time.time()
+            
+            # Volume control check (check every 200ms)
+            if current_time - last_volume_check_time > 0.2:
                 new_volume = volume_ctrl.get_volume()
-                if abs(new_volume - master_volume_level) > 0.01: # Update if changed significantly
+                if abs(new_volume - master_volume_level) > 0.01:
                     set_system_volume(new_volume)
-                last_volume_check_time = time.monotonic()
-
-            # Battery status check (periodically)
-            if time.monotonic() - last_battery_check_time > 10:  # Check every 10 seconds
+                last_volume_check_time = current_time
+            
+            # Battery status check (every 10 seconds)
+            if current_time - last_battery_check_time > 10:
                 handle_battery_status(adc, led_manager)
-                last_battery_check_time = time.monotonic()
-
+                last_battery_check_time = current_time
+            
             # Button event handling
             button_event = button.get_event()
-
+            
             if button_event == BUTTON_TAP:
                 if state == STATE_PLAYING:
                     pygame.mixer.music.pause()
@@ -193,6 +204,17 @@ def main():
                 stop_bgm()
                 pygame.mixer.stop()
                 current_card_uid = uid
+                
+                # Preload next card in background
+                if uid in ["000000", "000001", "000002", "000003", "000004"]:
+                    next_uid = f"{int(uid) + 1:06d}"
+                    threading.Thread(
+                        target=preload_narration_async, 
+                        args=(next_uid,), 
+                        daemon=True
+                    ).start()
+                
+                # Card data loading - this could be from cache now
                 card_data = load_card_stories(uid)
                 if not card_data:
                     logger.error(f"Invalid or missing JSON for card {uid}")
@@ -241,8 +263,17 @@ def main():
                 led_manager.set_pattern('breathing', period=2.5)
                 # uid = reader.read_uid()  # Now handled above
                 # ...existing code...
-            time.sleep(0.05) # Main loop polling interval
-
+            # Dynamic sleep calculation for consistent loop timing
+            loop_time = time.time() - loop_start
+            sleep_time = max(0.001, target_loop_time - loop_time)  # Ensure at least 1ms sleep
+            time.sleep(sleep_time)
+            
+            # Monitor loop performance
+            if time.time() - last_loop_time > 5.0:  # Log every 5 seconds
+                avg_loop = (time.time() - last_loop_time) / (1.0 / target_loop_time * 5.0)
+                logger.debug(f"Main loop avg time: {avg_loop*1000:.2f}ms (target: {target_loop_time*1000:.1f}ms)")
+                last_loop_time = time.time()
+        
         # Shutdown sequence
         logger.info("Shutting down...")
         if IS_RASPBERRY_PI:
@@ -285,10 +316,100 @@ def run_with_verification():
     """Run the application with initial verification"""
     logger.info("Starting Storellai-1 with verification checks")
     verify_audio_files()
-    # Remove or comment out the test playback step:
-    # test_audio_performance()
+    # test_audio_performance()  # Removed performance test to speed up startup
     main()
 
+def initialize_hardware():
+    """Initialize hardware components with appropriate error handling"""
+    reader = None
+    button = None
+    volume_ctrl = None
+    adc = None
+    
+    try:
+        if IS_RASPBERRY_PI:
+            # GPIO pins from app_config
+            from config.app_config import (
+                NFC_SPI_PORT, NFC_SPI_CS_PIN, NFC_IRQ_PIN, NFC_RST_PIN,
+                BUTTON_PIN, LED_PIN, ADC_CHANNEL_VOLUME
+            )
+            reader = UIDReader(spi_port=NFC_SPI_PORT, spi_cs_pin=NFC_SPI_CS_PIN, irq_pin=NFC_IRQ_PIN, rst_pin=NFC_RST_PIN)
+            button = Button(button_pin=BUTTON_PIN, led_pin=LED_PIN)
+            volume_ctrl = VolumeControl(adc_channel=ADC_CHANNEL_VOLUME)
+            adc = AnalogIn()  # Initialize MCP3008 ADC
+        else:
+            reader = UIDReader()
+            button = Button()
+            volume_ctrl = VolumeControl()
+
+        logger.info("Hardware initialization successful")
+        return reader, button, volume_ctrl, adc
+        
+    except Exception as e:
+        logger.error(f"Hardware initialization error: {e}")
+        logger.debug(traceback.format_exc())
+        # Return what we have - main() will check for None values
+        return reader, button, volume_ctrl, adc
+
+def background_preload():
+    """Preload assets in background thread"""
+    global background_loading_active
+    try:
+        background_loading_active = True
+        logger.info("Starting background preloading...")
+        
+        # Preload common card data
+        preload_card_data()
+        
+        # Preload narration for first few cards (adjust number as needed)
+        for uid in ["000000", "000001", "000002"]:
+            preload_narration_async(uid)
+            
+        logger.info("Background preloading completed")
+    except Exception as e:
+        logger.error(f"Background preloading error: {e}")
+    finally:
+        background_loading_active = False
+
+def handle_error(led_manager, error_type="general", message=None):
+    """
+    Handle different types of errors with appropriate LED feedback and logging.
+    
+    Args:
+        led_manager: LedPatternManager instance
+        error_type: Type of error ("card", "audio", "system")
+        message: Optional error message to log
+    """
+    if message:
+        logger.error(message)
+    
+    # Play error sound as immediate feedback
+    play_error_sound()
+    
+    # Different LED patterns for different error types
+    if error_type == "card":
+        # Card read error - 3 quick blinks
+        led_manager.set_pattern('blink', period=0.1, duty=0.5, count=3)
+    elif error_type == "audio":
+        # Audio error - Fast pulsing
+        led_manager.set_pattern('blink', period=0.1, duty=0.3, count=5)
+    elif error_type == "system":
+        # System error - SOS pattern (3 short, 3 long, 3 short)
+        # This is a more complex pattern to implement
+        led_manager.set_pattern('blink', period=0.2, duty=0.5, count=10)
+    else:
+        # General error - 5 quick blinks
+        led_manager.set_pattern('blink', period=0.15, duty=0.5, count=5)
+    
+    # Return to breathing pattern after error indication
+    time.sleep(1.0)
+    led_manager.set_pattern('breathing', period=2.5)
+
 if __name__ == "__main__":
-    # Simplified run for now, can add verification back later
-    main()
+    # Skip verification during normal operation for faster startup
+    # To run with verification: python box.py --verify
+    import sys
+    if "--verify" in sys.argv:
+        run_with_verification()
+    else:
+        main()

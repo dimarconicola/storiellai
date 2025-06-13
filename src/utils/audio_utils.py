@@ -114,37 +114,107 @@ def preload_narration(uid):
     logger.info(f"Preloaded {stories_loaded} narrations ({stories_failed} failed)")
 
 
+def preload_narration_async(uid):
+    """
+    Preload narration files for a specific card asynchronously.
+    This function is designed to be called in a separate thread.
+    
+    Args:
+        uid (str): Card UID to preload
+    """
+    try:
+        logger.debug(f"[ASYNC] Preloading narration for card {uid}...")
+        from utils.data_utils import load_card_stories
+        
+        card_data = load_card_stories(uid)
+        if not card_data or not card_data.get("stories"):
+            logger.debug(f"[ASYNC] No stories found for card {uid}, skipping narration preload")
+            return
+        
+        stories_loaded = 0
+        stories_failed = 0
+        
+        for story in card_data["stories"]:
+            if "audio" in story:
+                audio_path = Path(__file__).parent.parent / story["audio"]
+                if audio_path.exists():
+                    # Only preload if not already in cache
+                    if str(audio_path) not in NARRATION_CACHE:
+                        try:
+                            # Use low-level pygame methods for better control
+                            NARRATION_CACHE[str(audio_path)] = pygame.mixer.Sound(str(audio_path))
+                            stories_loaded += 1
+                            logger.debug(f"[ASYNC] Preloaded narration: {story['title']}")
+                        except Exception as e:
+                            stories_failed += 1
+                            logger.error(f"[ASYNC] Failed to preload narration {audio_path}: {e}")
+        
+        if stories_loaded > 0:
+            logger.info(f"[ASYNC] Preloaded {stories_loaded} narration files for card {uid} ({stories_failed} failed)")
+        else:
+            logger.warning(f"[ASYNC] No narration files preloaded for card {uid}")
+    
+    except Exception as e:
+        logger.error(f"[ASYNC] Error in async narration preload for {uid}: {e}")
+        logger.debug(traceback.format_exc())
+
+
 def crossfade_bgm_to_narration(bgm_path, narration_path, tone):
     """Play BGM with narration using crossfade technique"""
     global master_volume_level
     logger.debug(f"Starting crossfade playback: {tone} with master_volume: {master_volume_level:.2f}")
     
-    try:
+    # Use cached BGM if available for faster response
+    if tone in BGM_CACHE:
+        logger.debug(f"Using cached BGM for tone: {tone}")
         pygame.mixer.music.load(str(bgm_path))
-        # BGM_INTRO_VOLUME is a factor (e.g. 1.0), scale by master_volume_level
-        pygame.mixer.music.set_volume(BGM_INTRO_VOLUME * master_volume_level)
-        pygame.mixer.music.play(-1)
-        logger.debug(f"BGM started at volume {BGM_INTRO_VOLUME * master_volume_level:.2f}")
-    except Exception as e:
-        logger.error(f"Failed to play BGM: {e}")
-        return
+    else:
+        try:
+            pygame.mixer.music.load(str(bgm_path))
+            # Try to add to cache for future use if not already there
+            if tone not in BGM_CACHE:
+                try:
+                    BGM_CACHE[tone] = pygame.mixer.Sound(str(bgm_path))
+                    logger.debug(f"Added BGM to cache: {tone}")
+                except:
+                    pass  # Non-critical if caching fails
+        except Exception as e:
+            logger.error(f"Failed to play BGM: {e}")
+            return
     
-    time.sleep(1.5)
-    try:
-        narration = pygame.mixer.Sound(str(narration_path))
-        narration.set_volume(master_volume_level)  # Set narration volume based on master
-        logger.debug(f"Narration loaded: {narration_path.name}, volume: {master_volume_level:.2f}")
-    except Exception as e:
-        logger.error(f"Failed to load narration: {e}")
-        stop_bgm()
-        return
+    # Start BGM at intro volume
+    pygame.mixer.music.set_volume(BGM_INTRO_VOLUME * master_volume_level)
+    pygame.mixer.music.play(-1)
+    logger.debug(f"BGM started at volume {BGM_INTRO_VOLUME * master_volume_level:.2f}")
+    
+    # Short intro period (reduced from 1.5s to 1.0s for responsiveness)
+    time.sleep(1.0)
+    
+    # Check cache for narration sound
+    narration_path_str = str(narration_path)
+    narration = None
+    
+    if narration_path_str in NARRATION_CACHE:
+        logger.debug(f"Using cached narration: {narration_path.name}")
+        narration = NARRATION_CACHE[narration_path_str]
+    else:
+        try:
+            narration = pygame.mixer.Sound(str(narration_path))
+            # Add to cache for future use
+            NARRATION_CACHE[narration_path_str] = narration
+            logger.debug(f"Added narration to cache: {narration_path.name}")
+        except Exception as e:
+            logger.error(f"Failed to load narration: {e}")
+            stop_bgm()
+            return
     
     # Fade BGM to its narration level, scaled by master_volume
-    fade_bgm_to(BGM_NARRATION_VOLUME * master_volume_level, duration=1.0)
+    fade_bgm_to(BGM_NARRATION_VOLUME * master_volume_level, duration=0.75)  # Faster fade
     logger.debug(f"BGM faded to {BGM_NARRATION_VOLUME * master_volume_level:.2f} for narration")
-    time.sleep(0.3)
+    time.sleep(0.2)  # Reduced delay
     
     try:
+        narration.set_volume(master_volume_level)  # Set narration volume based on master
         narration_channel = narration.play()
         logger.info("Narration started")
         

@@ -11,9 +11,35 @@ import logging
 from utils.log_utils import logger
 
 
+# Global card data cache
+CARD_DATA_CACHE = {}
+
+
+def preload_card_data():
+    """Preload card JSON data into memory for faster access"""
+    logger.debug("Starting card data preload...")
+    cards_loaded = 0
+    
+    # Preload first 10 cards (or fewer if some don't exist)
+    for i in range(10):
+        uid = f"{i:06d}"
+        path = STORIES_FOLDER / f"card_{uid}.json"
+        
+        if path.exists():
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    CARD_DATA_CACHE[uid] = json.load(f)
+                cards_loaded += 1
+                logger.debug(f"Preloaded card data: {uid}")
+            except Exception as e:
+                logger.error(f"Failed to preload card data for {uid}: {e}")
+    
+    logger.info(f"Preloaded {cards_loaded} card data files")
+
+
 def load_card_stories(uid: str) -> dict | None:
     """
-    Load stories for a card from JSON file.
+    Load stories for a card from JSON file or cache.
     
     Args:
         uid (str): Card UID
@@ -21,6 +47,12 @@ def load_card_stories(uid: str) -> dict | None:
     Returns:
         dict or None: Card data if found and valid, None otherwise
     """
+    # First check cache
+    if uid in CARD_DATA_CACHE:
+        logger.debug(f"Using cached card data for {uid}")
+        return CARD_DATA_CACHE[uid]
+    
+    # If not in cache, load from file
     path = STORIES_FOLDER / f"card_{uid}.json"
     logger.debug(f"Looking for JSON file: {path}")
     
@@ -32,6 +64,8 @@ def load_card_stories(uid: str) -> dict | None:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
             logger.info(f"Successfully loaded JSON for card {uid}")
+            # Add to cache for future use
+            CARD_DATA_CACHE[uid] = data
             return data
     except json.JSONDecodeError as e:
         logger.error(f"Invalid JSON format in {path}: {e}")
