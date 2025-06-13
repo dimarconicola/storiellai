@@ -230,3 +230,19 @@ def test_audio_performance():
         print(f"[INFO] Sound load time: {load_time:.4f}s, play startup: {play_time:.4f}s")
     else:
         print("[WARNING] Cannot test Sound performance, no files found")
+
+def play_error_sound():
+    """Play a default error sound if available."""
+    error_path = AUDIO_FOLDER / "error.mp3"
+    if error_path.exists():
+        try:
+            sound = pygame.mixer.Sound(str(error_path))
+            sound.set_volume(1.0)
+            sound.play()
+            print("[AUDIO] Played error sound.")
+            # Wait briefly to let the error sound play
+            pygame.time.wait(700)
+        except Exception as e:
+            print(f"[AUDIO] Failed to play error sound: {e}")
+    else:
+        print("[AUDIO] Error sound file missing: error.mp3")

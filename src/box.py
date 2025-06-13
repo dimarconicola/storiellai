@@ -30,7 +30,7 @@ else:
 # Import from utility modules
 from utils.audio_utils import (
     initialize_audio_engine, set_system_volume, preload_bgm, 
-    play_narration_with_bgm, test_audio_performance
+    play_narration_with_bgm, test_audio_performance, play_error_sound
 )
 from utils.data_utils import load_card_stories, verify_audio_files
 from utils.time_utils import is_calm_time, select_story_for_time
@@ -56,6 +56,10 @@ def main():
     global master_volume_level
     if not initialize_audio_engine():
         print("[CRITICAL] Failed to initialize audio. Exiting.")
+        if button:
+            led_manager = LedPatternManager(button)
+            led_manager.set_pattern('blink', period=0.15, duty=0.5)
+        play_error_sound()
         return
     
     preload_bgm()
@@ -89,6 +93,15 @@ def main():
             reader = MockUIDReader()
             button = MockButton()
             volume_ctrl = MockVolumeControl()
+
+        # Hardware check: if any critical component failed, signal error
+        if reader is None or button is None or volume_ctrl is None:
+            print("[CRITICAL] Hardware initialization failed.")
+            if button:
+                led_manager = LedPatternManager(button)
+                led_manager.set_pattern('blink', period=0.1, duty=0.5)
+            play_error_sound()
+            return
 
         state = STATE_IDLE
         button.set_led(LED_ON) # LED on when idle, ready
@@ -153,7 +166,8 @@ def main():
                             state = STATE_PLAYING
                         else:
                             print(f"[ERROR] Audio for new story not found: {current_narration_path}")
-                            led_manager.set_pattern('solid', state=True)
+                            led_manager.set_pattern('blink', period=0.15, duty=0.5, count=5)
+                            play_error_sound()
                             state = STATE_IDLE
                     else:
                         print("[WARN] No stories for current card on double tap, returning to idle.")
@@ -178,6 +192,8 @@ def main():
                     card_data = load_card_stories(uid)
                     if not card_data or not card_data.get("stories"):
                         print(f"[ERROR] No stories for card {uid}")
+                        led_manager.set_pattern('blink', period=0.15, duty=0.5, count=5)
+                        play_error_sound()
                         current_card_uid = None
                         continue
                     
@@ -190,6 +206,8 @@ def main():
 
                     if not current_narration_path.exists():
                         print(f"[ERROR] Audio file not found: {current_narration_path}")
+                        led_manager.set_pattern('blink', period=0.15, duty=0.5, count=5)
+                        play_error_sound()
                         current_card_uid = None
                         continue
                         
