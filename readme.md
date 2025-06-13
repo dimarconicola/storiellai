@@ -53,19 +53,21 @@ Storyteller Box is a small bedside companion that **tells pre-recorded Italian f
 | Component             | Description                                      | Est. Price (EUR) | Notes                                                                 |
 | :-------------------- | :----------------------------------------------- | :--------------- | :-------------------------------------------------------------------- |
 | Raspberry Pi Zero 2 W | Microcontroller board                            | 15-20            | Or any compatible Raspberry Pi (3B+, 4, etc.)                         |
-| PN532 NFC Reader      | NFC/RFID reader module (SPI interface preferred) | 5-10             |                                                                       |
+| PN532 NFC Reader      | NFC/RFID reader module (SPI interface preferred) | 5-10             | Adafruit PN532 breakout or similar                                    |
 | Micro SD Card         | 16GB or larger, Class 10                         | 5-10             | For OS and audio files                                                |
 | Speaker               | 3W, 4 Ohm full-range speaker                     | 3-5              | Adafruit #1314 or similar                                             |
 | PAM8302A Amplifier    | 2.5W Mono Class D Audio Amplifier                | 2-4              | Or similar I2S/analog amplifier compatible with Pi                    |
 | LED Button            | Illuminated momentary push button                | 2-4              |                                                                       |
+| Rotary Potentiometer  | 10k Ohm Linear Potentiometer                     | 1-3              | For volume control                                                    |
+| MCP3008 ADC           | 8-Channel 10-Bit ADC with SPI Interface        | 2-4              | To read analog value from potentiometer                             |
 | Power Supply          | 5V, 2.5A Micro USB power supply                  | 5-10             |                                                                       |
 | Jumper Wires          | Assorted male/female                             | 2-5              |                                                                       |
 | NFC Cards/Tags        | NTAG215 or similar (compatible with PN532)       | 0.50-1 per card  |                                                                       |
 | Enclosure             | 3D printed or custom-made box                    | 5-20             | Material cost if 3D printing                                          |
 | **Optional:**         |                                                  |                  |                                                                       |
-| USB Sound Card        | If Pi's onboard audio is noisy                   | 5-10             |                                                                       |
+| USB Sound Card        | If Pi\'s onboard audio is noisy                   | 5-10             |                                                                       |
 | Soldering Iron & Tin  | For connecting components                        | -                | If not using breadboard/jumper wires for permanent connections        |
-| **Total Estimated:**  |                                                  | **45-90 EUR**    | Excluding optional items and tools                                    |
+| **Total Estimated:**  |                                                  | **50-100 EUR**   | Excluding optional items and tools                                    |
 
 ---
 
@@ -73,24 +75,53 @@ Storyteller Box is a small bedside companion that **tells pre-recorded Italian f
 
 *(Detailed wiring diagrams and enclosure design files will be added here or in a separate `hardware/` directory.)*
 
+**General Connections:**
+*   Ensure all components share a common ground (GND) with the Raspberry Pi.
+*   Use appropriate resistors for LEDs if not built into the button assembly.
+
 1.  **Raspberry Pi:** Prepare the Raspberry Pi by flashing Raspberry Pi OS Lite.
-2.  **NFC Reader (PN532):**
+2.  **NFC Reader (PN532 - SPI):**
     *   Connect to the Raspberry Pi via SPI.
-    *   **SPI Pins (Pi Zero 2 W):**
-        *   `SCLK` (PN532) -> `GPIO11` (Pi SCLK)
+    *   **PN532 Pins -> Raspberry Pi Pins (BCM numbering):**
+        *   `VCC` -> `3.3V` or `5V` (check PN532 module specs)
+        *   `GND` -> `GND`
+        *   `SCK/SCLK` (PN532) -> `GPIO11` (Pi SCLK)
         *   `MISO` (PN532) -> `GPIO9` (Pi MISO)
         *   `MOSI` (PN532) -> `GPIO10` (Pi MOSI)
-        *   `SS/SSEL` (PN532) -> `GPIO8` (Pi CE0) (or another GPIO if using software SPI select)
-        *   `IRQ` (PN532) -> A chosen GPIO (e.g., `GPIO25`)
-        *   `RST` (PN532) -> A chosen GPIO (e.g., `GPIO17`)
-3.  **Audio Output:**
-    *   Connect the PAM8302A amplifier input to the Raspberry Pi's audio output (either 3.5mm jack or GPIO pins if using I2S).
-    *   Connect the speaker to the amplifier's output.
-    *   *Alternatively, use an I2S DAC like MAX98357A or PCM5102A for better audio quality.*
+        *   `SS/SSEL/CS` (PN532) -> `GPIO8` (Pi CE0) (or another GPIO if using software SPI select, e.g., `GPIO7` / CE1)
+        *   `IRQ` (PN532, optional but recommended) -> A chosen GPIO (e.g., `GPIO25`)
+        *   `RST` (PN532, optional) -> A chosen GPIO (e.g., `GPIO17`)
+3.  **Audio Output (PAM8302A Amplifier & Speaker):**
+    *   **PAM8302A Pins -> Raspberry Pi / Speaker:**
+        *   `Vin` -> `5V` (Pi)
+        *   `GND` -> `GND` (Pi)
+        *   `A+` (Audio Input +) -> Raspberry Pi\'s `Audio L` (Tip of 3.5mm jack) or `DAC_L` if using I2S DAC.
+        *   `A-` (Audio Input -) -> Raspberry Pi\'s `Audio GND` (Sleeve of 3.5mm jack) or `DAC_R` (can be tied to GND for mono from stereo source).
+        *   `Speaker Output +` -> Speaker `+` terminal
+        *   `Speaker Output -` -> Speaker `-` terminal
+    *   *Alternatively, use an I2S DAC like MAX98357A or PCM5102A for better audio quality, connecting to I2S pins on the Pi.*
 4.  **LED Button:**
-    *   Connect the button switch to a GPIO pin (e.g., `GPIO23`) and GND.
-    *   Connect the button's LED (with an appropriate resistor) to another GPIO pin (e.g., `GPIO24`) and GND.
-5.  **Power:** Power the Raspberry Pi using the Micro USB power supply.
+    *   **Button Pins -> Raspberry Pi Pins (BCM numbering):**
+        *   Button Switch Terminal 1 -> `GPIO23` (or chosen button pin)
+        *   Button Switch Terminal 2 -> `GND`
+        *   LED Anode (+) (usually marked) -> `GPIO24` (or chosen LED pin, via a current-limiting resistor e.g., 220-330 Ohm if not built-in)
+        *   LED Cathode (-) (usually marked) -> `GND`
+5.  **Volume Control (Potentiometer & MCP3008 ADC):**
+    *   **Potentiometer Pins:**
+        *   Terminal 1 (e.g., CCW limit) -> `GND` (Pi)
+        *   Terminal 2 (Wiper) -> `CH0` (MCP3008, or chosen ADC channel)
+        *   Terminal 3 (e.g., CW limit) -> `3.3V` (Pi)
+    *   **MCP3008 Pins -> Raspberry Pi Pins (BCM numbering):**
+        *   `VDD` (MCP3008) -> `3.3V` (Pi)
+        *   `VREF` (MCP3008) -> `3.3V` (Pi) (connect to VDD for ratiometric reading)
+        *   `AGND` (MCP3008) -> `GND` (Pi)
+        *   `DGND` (MCP3008) -> `GND` (Pi)
+        *   `CLK` (MCP3008) -> `GPIO11` (Pi SCLK)
+        *   `DOUT` (MCP3008 MISO) -> `GPIO9` (Pi MISO)
+        *   `DIN` (MCP3008 MOSI) -> `GPIO10` (Pi MOSI)
+        *   `CS/SHDN` (MCP3008 Chip Select) -> `GPIO7` (Pi CE1) (or another free GPIO, e.g., `GPIO22`. Cannot share CE0 with PN532 if both are on SPI0)
+        *   `CH0` - `CH7`: Analog inputs. Connect potentiometer wiper to one of these (e.g., `CH0`).
+6.  **Power:** Power the Raspberry Pi using the Micro USB power supply.
 
 ---
 
@@ -105,9 +136,9 @@ Storyteller Box is a small bedside companion that **tells pre-recorded Italian f
 2.  **Install System Dependencies:**
     ```bash
     sudo apt update
-    sudo apt install -y python3-pip python3-pygame libasound2-dev
-    # For PN532 SPI (if using a library that needs it)
-    # sudo apt install -y libffi-dev
+    sudo apt install -y python3-pip python3-pygame libasound2-dev python3-dev libgpiod2
+    # For PN532 and MCP3008 SPI (if using libraries that need it)
+    # sudo apt install -y libffi-dev build-essential
     ```
 
 3.  **Enable SPI on Raspberry Pi:**
@@ -121,13 +152,17 @@ Storyteller Box is a small bedside companion that **tells pre-recorded Italian f
         python3 -m venv .venv
         source .venv/bin/activate
         ```
-    *   Install required packages (a `requirements.txt` will be provided):
+    *   Install required packages from `requirements.txt`:
         ```bash
-        # pip install RPi.GPIO spidev pygame python-pn532 # Example packages
-        # For now, ensure pygame is installed as per system dependencies.
-        # A full requirements.txt will be generated based on the final hardware choices.
+        pip install -r requirements.txt
         ```
-        *(Note: The exact Python libraries for NFC will depend on the chosen PN532 library. `python-pn532` is a common one for SPI.)*
+        The `requirements.txt` should include:
+        ```
+        RPi.GPIO
+        pygame
+        adafruit-circuitpython-mcp3008
+        adafruit-circuitpython-pn532
+        ```
 
 5.  **Configure Audio:**
     *   Ensure audio output is correctly configured in Raspberry Pi OS (e.g., to HDMI, 3.5mm jack, or I2S DAC). Use `raspi-config` under `System Options` -> `Audio`.
@@ -207,13 +242,15 @@ The offline version relies on pre-recorded audio files and JSON configurations.
 
 ## Usage
 
-1.  **Power On:** Connect the power supply. The system should boot, and the `box.py` script will start (if set up as a service). The LED button might pulse to indicate it's ready.
+1.  **Power On:** Connect the power supply. The system should boot, and the `box.py` script will start (if set up as a service). The LED button might pulse to indicate it\'s ready.
 2.  **Place Card:** Place an NFC card on the reader.
-3.  **Listen:** The story associated with the card will begin playing with background music.
+3.  **Listen:** The story associated with the card will begin playing with background music. The volume can be adjusted using the volume knob.
 4.  **Button Controls:**
-    *   **Short Press (while idle):** If a story was previously selected, it might replay or play the next in a sequence (if implemented).
-    *   **Short Press (while playing):** Pause/Resume the story.
-    *   **Long Press (e.g., 3 seconds):** Initiate a safe shutdown of the Raspberry Pi.
+    *   **Tap (Short Press):**
+        *   If a story is playing: Pause/Resume the story.
+        *   If idle (no story playing/paused): Replay the last played story from the beginning. If no story was played since startup or after a new card, this might do nothing or play a default "ready" sound if implemented.
+    *   **Double-Tap:** Skip to a new random story from the *current* NFC card (if the card has multiple stories). If the card has only one story, or if no card is active, this might replay the current story or do nothing.
+    *   **Long Press (e.g., 1.5-3 seconds):** Initiate a safe shutdown of the Raspberry Pi. The LED might blink rapidly during shutdown.
 
 ---
 
@@ -224,6 +261,11 @@ The offline version relies on pre-recorded audio files and JSON configurations.
     *   Verify audio output settings in `raspi-config`.
     *   Test with `aplay /usr/share/sounds/alsa/Front_Center.wav`.
     *   Check `pygame` mixer initialization in logs.
+*   **Volume knob not working:**
+    *   Verify MCP3008 wiring, especially SPI connections (CLK, MISO, MOSI, CS) and power (VDD, VREF, GNDs).
+    *   Ensure the correct ADC channel is used in `hal.py`.
+    *   Check potentiometer wiring (GND, Wiper to ADC channel, 3.3V).
+    *   Test the MCP3008 with a simple Python script example from the Adafruit library.
 *   **NFC card not read:**
     *   Verify PN532 wiring and SPI configuration.
     *   Ensure the correct Python library for PN532 is installed and used.
@@ -236,11 +278,11 @@ The offline version relies on pre-recorded audio files and JSON configurations.
 
 ## Future Ideas
 
-*   More sophisticated LED patterns for different states.
+*   More sophisticated LED patterns for different states (e.g., story finished, error).
 *   Web interface for managing stories on the SD card (would require adding back some web server components like Flask, but could still be local network only).
 *   Support for multiple narrations per story part (e.g., different voices).
-*   Physical volume knob.
-*   Battery power option.
+*   Battery power option with low-battery warning/shutdown.
+*   "Shuffle all stories" mode, perhaps triggered by a special NFC card or a different button combination.
 
 ---
 
@@ -266,7 +308,7 @@ storiellai/
 │   │   └── calmo_loop.mp3
 │   ├── storiesoffline/    # JSON files defining stories for each NFC card UID
 │   │   └── card_000000.json
-│   └── config/            # Configuration files (if any, e.g. parent_config.py)
-│       └── parent_config.py
-└── requirements.txt       # Python dependencies (to be generated)
+│   ├── config/            # Configuration files
+│   │   └── card_configs.py  # Story and card configurations (if not using individual JSONs)
+└── requirements.txt       # Python dependencies
 ```

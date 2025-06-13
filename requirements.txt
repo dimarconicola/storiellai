@@ -1,0 +1,4 @@
+RPi.GPIO
+pygame
+adafruit-circuitpython-mcp3008
+adafruit-circuitpython-pn532
