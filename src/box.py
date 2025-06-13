@@ -27,7 +27,9 @@ from adafruit_mcp3xxx.analog_in import AnalogIn
 from utils.audio_utils import (
     initialize_audio_engine, set_system_volume, preload_bgm, 
     play_narration_with_bgm, test_audio_performance, play_error_sound,
-    preload_narration_async  # New async preloading function
+    preload_narration_async,  # New async preloading function
+    play_card_valid_sound, play_card_invalid_sound, play_transition_sound,
+    play_boot_sound, play_shutdown_sound, play_pause_sound, play_resume_sound, play_success_sound
 )
 from utils.data_utils import load_card_stories, verify_audio_files, preload_card_data  # Added preload_card_data
 from utils.time_utils import is_calm_time, select_story_for_time
@@ -121,6 +123,7 @@ def main():
     
     # System booting up: show boot sequence
     led_manager.set_boot_sequence()
+    play_boot_sound()
     time.sleep(1.0)  # Allow boot sequence to start
     
     # Calculate total startup time
@@ -153,11 +156,13 @@ def main():
             if button_event == BUTTON_TAP:
                 if state == STATE_PLAYING:
                     pygame.mixer.music.pause()
+                    play_pause_sound()
                     led_manager.set_pattern('breathing', period=2.5)
                     state = STATE_PAUSED
                     logger.info("Playback PAUSED")
                 elif state == STATE_PAUSED:
                     pygame.mixer.music.unpause()
+                    play_resume_sound()
                     led_manager.set_pattern('solid', state=True)
                     state = STATE_PLAYING
                     logger.info("Playback RESUMED")
@@ -167,10 +172,8 @@ def main():
                     logger.info("Double tap: Reselecting story for current card.")
                     stop_bgm()
                     pygame.mixer.stop()
-                    
-                    # Show loading pattern while selecting a new story
                     led_manager.set_loading_pattern()
-                    
+                    play_transition_sound()
                     card_data = load_card_stories(current_card_uid)
                     if card_data and card_data.get("stories"):
                         stories = card_data["stories"]
@@ -180,6 +183,7 @@ def main():
                         if current_narration_path.exists():
                             logger.info(f"Playing new story: {selected_story['title']}")
                             play_narration_with_bgm(current_narration_path, current_bgm_tone)
+                            play_success_sound()
                             led_manager.set_success_pattern(next_pattern='solid')
                             state = STATE_PLAYING
                         else:
@@ -195,6 +199,7 @@ def main():
             elif button_event == BUTTON_LONG_PRESS:
                 logger.info("Long press: Initiating shutdown.")
                 led_manager.set_shutdown_sequence()
+                play_shutdown_sound()
                 stop_bgm()
                 pygame.mixer.stop()
                 state = STATE_SHUTTING_DOWN
@@ -207,10 +212,8 @@ def main():
                 stop_bgm()
                 pygame.mixer.stop()
                 current_card_uid = uid
-                
-                # Show loading pattern while processing card
                 led_manager.set_attention_pattern(count=1)
-                
+                play_transition_sound()
                 # Preload next card in background
                 if uid in ["000000", "000001", "000002", "000003", "000004"]:
                     next_uid = f"{int(uid) + 1:06d}"
@@ -219,12 +222,11 @@ def main():
                         args=(next_uid,), 
                         daemon=True
                     ).start()
-                
-                # Card data loading - this could be from cache now
                 card_data = load_card_stories(uid)
                 if not card_data:
                     logger.error(f"Invalid or missing JSON for card {uid}")
                     led_manager.set_card_sequence(is_valid=False)
+                    play_card_invalid_sound()
                     play_error_sound()
                     current_card_uid = None
                     state = STATE_IDLE
@@ -232,6 +234,7 @@ def main():
                 if not card_data.get("stories"):
                     logger.warning(f"Empty card: no stories for card {uid}")
                     led_manager.set_pattern('colorshift', levels=[50, 0, 50, 0], duration=0.2, count=3, next_pattern='breathing')
+                    play_card_invalid_sound()
                     play_error_sound()
                     current_card_uid = None
                     state = STATE_IDLE
@@ -244,11 +247,13 @@ def main():
                 if not current_narration_path.exists():
                     logger.error(f"Audio file not found: {current_narration_path}")
                     led_manager.set_error_pattern(count=2)
+                    play_card_invalid_sound()
                     play_error_sound()
                     current_card_uid = None
                     state = STATE_IDLE
                     continue
                 logger.info(f"Transitioning to PLAYING state")
+                play_card_valid_sound()
                 play_narration_with_bgm(current_narration_path, current_bgm_tone)
                 led_manager.set_card_sequence(is_valid=True)
                 state = STATE_PLAYING
