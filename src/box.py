@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 Main application logic for the Storyteller Box (Offline Edition).
 Handles NFC card reading, story selection, audio playback, button events, volume control, and LED feedback patterns.
