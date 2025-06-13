@@ -45,8 +45,9 @@ Storyteller Box is a small bedside companion that **tells pre-recorded fairy tal
     *   It plays the pre-recorded narration audio file for the selected story.
     *   `pygame` is used for audio mixing and playback.
 4.  **Button Control:** A single button allows the child to play/pause the current story or initiate a shutdown.
-5.  **LED Feedback:** The button's LED provides visual feedback (e.g., pulsing when ready, solid when playing).
+5.  **LED Feedback:** The button\'s LED provides visual feedback (e.g., pulsing when ready, solid when playing).
 6.  **Modular Design:** The codebase is now modular, with utility functions and configuration constants moved to dedicated modules for better maintainability.
+7.  **Battery Management:** The system monitors battery voltage via an MCP3008 ADC. It provides a low battery warning (e.g., specific LED pattern) and can initiate a safe shutdown if the battery level becomes critical. The `hardware/hal.py` module includes logic to use a real ADC on a Raspberry Pi or a mock ADC for development on other systems (like macOS).
 
 ---
 
@@ -62,9 +63,10 @@ root/
 │   │   ├── audio_utils.py    # Audio engine and playback utilities
 │   │   ├── data_utils.py     # JSON and file utilities
 │   │   ├── led_utils.py      # LED pattern manager
-│   │   ├── time_utils.py     # Time-based logic utilities
+│   │   ├── time_utils.py     # Time-based logic and battery management utilities
 │   │   └── bgm_utils.py      # Background music utilities
-│   ├── hardware/             # Hardware abstraction layer
+│   ├── hardware/             # Hardware abstraction layer (HAL)
+│   │   └── hal.py            # Defines real and mock hardware interfaces (NFC, Button, ADC)
 │   └── storiesoffline/       # JSON files for NFC card story mappings
 ├── models/                   # Placeholder for future model files (if needed)
 ├── audio/                    # Audio files (narration, BGM)
@@ -86,8 +88,8 @@ root/
 | PAM8302A Amplifier    | 2.5W Mono Class D Audio Amplifier                | 2-4              | Or similar I2S/analog amplifier compatible with Pi                    |
 | LED Button            | Illuminated momentary push button                | 2-4              |                                                                       |
 | Rotary Potentiometer  | 10k Ohm Linear Potentiometer                     | 1-3              | For volume control                                                    |
-| MCP3008 ADC           | 8-Channel 10-Bit ADC with SPI Interface        | 2-4              | To read analog value from potentiometer                             |
-| Powerbank Battery     | Portable battery pack for powering the device    | 10-20            |                                                                       |
+| MCP3008 ADC           | 8-Channel 10-Bit ADC with SPI Interface        | 2-4              | To read analog value from potentiometer and battery voltage           |
+| Powerbank Battery     | Portable battery pack for powering the device    | 10-20            | Used to power the Pi. Voltage monitoring via MCP3008 (requires voltage divider circuit). |
 | Jumper Wires          | Assorted male/female                             | 2-5              |                                                                       |
 | NFC Cards/Tags        | NTAG215 or similar (compatible with PN532)       | 0.50-1 per card  |                                                                       |
 | Enclosure             | 3D printed or custom-made box                    | 5-20             | Material cost if 3D printing                                          |
@@ -119,6 +121,7 @@ root/
 | Button                | GPIO23                 | Button input                              |
 | **Rotary Potentiometer** |                         |                                            |
 | Signal                | MCP3008 Channel 0      | Analog input via ADC                     |
+| **Battery Voltage Sense**| MCP3008 Channel 1 (example)| Connect to output of a voltage divider (e.g., 1:2) from powerbank 5V line. |
 | **Speaker & Amplifier** |                         |                                            |
 | Speaker+              | PAM8302A Output+       | Connect to speaker                        |
 | Speaker-              | PAM8302A Output-       | Connect to speaker                        |
@@ -165,7 +168,7 @@ root/
 +-------------------+                           |
 ```
 
-This diagram provides a basic overview of the connections between the Raspberry Pi, NFC reader, LED button, MCP3008 ADC, and PAM8302A amplifier. For more detailed diagrams, consider using tools like Fritzing or Tinkercad.
+This diagram provides a basic overview of the connections between the Raspberry Pi, NFC reader, LED button, MCP3008 ADC (for volume and battery), and PAM8302A amplifier. For more detailed diagrams, consider using tools like Fritzing or Tinkercad.
 
 ### Enclosure Design
 

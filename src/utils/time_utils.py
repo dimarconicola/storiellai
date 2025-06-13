@@ -6,8 +6,11 @@ Handles time-based logic and story selection based on time of day.
 
 import time
 import random
+import os
 from config.app_config import CALM_TIME_START, CALM_TIME_END
 from utils.story_utils import pick_story
+from utils.audio_utils import stop_bgm
+from hardware.hal import MCP3008, AnalogIn
 
 
 def is_calm_time():
@@ -58,3 +61,32 @@ def select_story_for_time(stories, is_calm):
     selected_story = random.choice(stories)
     print(f"[DEBUG] Selected fallback story: {selected_story['title']}")
     return selected_story
+
+
+# Constants for battery management
+LOW_BATTERY_THRESHOLD = 3.3  # Voltage level for low battery warning
+CRITICAL_BATTERY_THRESHOLD = 3.0  # Voltage level for critical battery shutdown
+
+# Initialize MCP3008 ADC (assuming channel 0 is used for battery voltage)
+mcp = MCP3008()
+battery_channel = AnalogIn(mcp, 0)
+
+
+def read_battery_voltage():
+    """Read the battery voltage from the ADC."""
+    voltage = battery_channel.voltage * 2  # Adjust for voltage divider
+    print(f"[DEBUG] Battery voltage: {voltage:.2f}V")
+    return voltage
+
+
+# Function to handle battery management
+def handle_battery_status():
+    """Check battery status and handle low/critical levels."""
+    voltage = read_battery_voltage()
+
+    if voltage <= CRITICAL_BATTERY_THRESHOLD:
+        print("[WARNING] Critical battery level! Initiating safe shutdown...")
+        stop_bgm()
+        os.system("sudo shutdown now")
+    elif voltage <= LOW_BATTERY_THRESHOLD:
+        print("[WARNING] Low battery level! Please recharge soon.")

@@ -17,6 +17,8 @@ import pygame
 import sys  # For GPIO cleanup on exit
 
 from hardware.hal import IS_RASPBERRY_PI, BUTTON_NO_EVENT, BUTTON_TAP, BUTTON_DOUBLE_TAP, BUTTON_LONG_PRESS
+from utils.time_utils import handle_battery_status
+from adafruit_mcp3xxx.analog_in import AnalogIn
 
 if IS_RASPBERRY_PI:
     from hardware.hal import RealUIDReader, RealButton, RealVolumeControl
@@ -47,6 +49,7 @@ def main():
     - Initializes hardware abstraction (real or mock)
     - Handles state machine for NFC, audio, button, and LED
     - Integrates volume knob and error handling
+    - Monitors battery status
     - Cleans up on exit
     """
     global master_volume_level
@@ -65,6 +68,7 @@ def main():
     reader = None
     button = None
     volume_ctrl = None
+    adc = None
     
     try:
         if IS_RASPBERRY_PI:
@@ -79,6 +83,7 @@ def main():
             reader = RealUIDReader(spi_port=NFC_SPI_PORT, spi_cs_pin=NFC_SPI_CS_PIN, irq_pin=NFC_IRQ_PIN, rst_pin=NFC_RST_PIN)
             button = RealButton(button_pin=BUTTON_PIN, led_pin=LED_PIN)
             volume_ctrl = RealVolumeControl(adc_channel=ADC_CHANNEL_VOLUME)
+            adc = AnalogIn()  # Initialize MCP3008 ADC
         else:
             reader = MockUIDReader()
             button = MockButton()
@@ -90,7 +95,8 @@ def main():
         print(f"[INFO] Running on {'Raspberry Pi' if IS_RASPBERRY_PI else 'Mock Hardware'}")
 
         last_volume_check_time = time.monotonic()
-        
+        last_battery_check_time = time.monotonic()
+
         # Initial volume setting
         master_volume_level = volume_ctrl.get_volume() 
         set_system_volume(master_volume_level)
@@ -100,12 +106,18 @@ def main():
 
         while state != STATE_SHUTTING_DOWN:
             led_manager.update()
+
             # Volume control check (periodically)
             if time.monotonic() - last_volume_check_time > 0.2: # Check 5 times a second
                 new_volume = volume_ctrl.get_volume()
                 if abs(new_volume - master_volume_level) > 0.01: # Update if changed significantly
                     set_system_volume(new_volume)
                 last_volume_check_time = time.monotonic()
+
+            # Battery status check (periodically)
+            if time.monotonic() - last_battery_check_time > 10:  # Check every 10 seconds
+                handle_battery_status(adc, led_manager)
+                last_battery_check_time = time.monotonic()
 
             # Button event handling
             button_event = button.get_event()

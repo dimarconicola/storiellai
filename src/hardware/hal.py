@@ -12,19 +12,110 @@ Allows seamless switching between real hardware and mock/testing environments.
 import time
 import random
 # Attempt to import Raspberry Pi specific libraries
-IS_RASPBERRY_PI = False
+IS_RASPBERRY_PI = True  # Force real hardware usage
 try:
+    # Test RPi.GPIO first as it's a primary indicator
     import RPi.GPIO as GPIO
-    # For MCP3008 (ADC for volume knob)
-    # import Adafruit_MCP3008
-    # For PN532 (NFC Reader)
-    # from pn532 import PN532_SPI # This is just an example, actual library may vary
+    # If RPi.GPIO works, then try to import other RPi-specific things for ADC
+    import board
+    import busio
+    import digitalio
+    import adafruit_mcp3xxx.mcp3008 as ADConverter_MCP3008_Chip
+    from adafruit_mcp3xxx.analog_in import AnalogIn as RealAnalogIn # Import real AnalogIn
+
     IS_RASPBERRY_PI = True
-    print("[HAL] Raspberry Pi environment detected.")
-except ImportError:
-    print("[HAL] Not running on Raspberry Pi or required libraries (RPi.GPIO, Adafruit_MCP3008, PN532) not found. Using Mocks.")
+    print("[HAL] Raspberry Pi environment detected and real ADC libraries imported.")
+
+    # This class, when instantiated, returns a configured MCP3008 chip object
+    class MCP3008_HAL_Real_Provider:
+        _mcp_chip_instance = None
+        def __new__(cls):
+            if cls._mcp_chip_instance is None:
+                # SPI bus setup
+                spi = busio.SPI(clock=board.SCK, MISO=board.MISO, MOSI=board.MOSI)
+                
+                # Chip Select (CS) pin for MCP3008
+                # TODO: Make CS_PIN_MCP3008 configurable via app_config.py
+                # Ensure this pin is dedicated to MCP3008 and not conflicting
+                # Example: Using GPIO25 (board.D25)
+                cs_pin_name = "D25" 
+                try:
+                    cs = digitalio.DigitalInOut(getattr(board, cs_pin_name))
+                except AttributeError:
+                    print(f"[HAL_ERROR] CS pin {cs_pin_name} not found on board. Using D5 as fallback.")
+                    cs = digitalio.DigitalInOut(board.D5) # Fallback, ensure this is valid
+                
+                cls._mcp_chip_instance = ADConverter_MCP3008_Chip.MCP3008(spi, cs)
+                print(f"[HAL] Real MCP3008 chip initialized on SPI with CS pin {cs_pin_name}.")
+            return cls._mcp_chip_instance
+
+    MCP3008 = MCP3008_HAL_Real_Provider # Export this class/factory
+    AnalogIn = RealAnalogIn # Export real AnalogIn
+
+except ImportError as e:
+    print(f"[HAL] ImportError during RPi setup: {e}. Using Mocks for ADC.")
+    IS_RASPBERRY_PI = False 
 except RuntimeError as e:
-    print(f"[HAL] Error importing RPi.GPIO: {e}. (Are you root or in gpio group?). Using Mocks.")
+    print(f"[HAL] RuntimeError during RPi setup (likely RPi.GPIO): {e}. Using Mocks for ADC.")
+    IS_RASPBERRY_PI = False
+
+if not IS_RASPBERRY_PI:
+    # This block executes on macOS or if RPi library imports fail
+    class MockMCP3008_HAL_EmulatedChip:
+        def __init__(self): # Called by MCP3008() in time_utils.py
+            print("[HAL_Mock] MockMCP3008_HAL_EmulatedChip object created (simulates MCP3008 chip).")
+            self.bits = 10 # MCP3008 is 10-bit
+            self.reference_voltage = 3.3 # Common Vref, used by AnalogIn
+
+        def _read(self, pin_index, is_differential=False):
+            # This method is called by AnalogIn.value
+            # It should return a raw integer ADC value (0-1023 for 10-bit).
+            raw_value = 0
+            if pin_index == 0: # Assuming battery voltage is on ADC channel 0
+                # Simulate a battery voltage. Example: 3.7V actual, with a 1:2 voltage divider -> 1.85V at ADC pin.
+                # Raw ADC value = (voltage_at_pin / adc_reference_voltage) * (2^adc_bits - 1)
+                # Raw value = (1.85V / 3.3V) * 1023 = 0.5606 * 1023 = 573.4 ~= 573
+                raw_value = 573 
+                print(f"[HAL_Mock] MockMCP3008: Reading pin {pin_index} (battery), returning raw value {raw_value}.")
+            else:
+                # For other pins, return a default mock value, e.g., mid-scale
+                raw_value = 512 
+                print(f"[HAL_Mock] MockMCP3008: Reading pin {pin_index}, returning default raw value {raw_value}.")
+            return raw_value
+            
+    MCP3008 = MockMCP3008_HAL_EmulatedChip # Export the mock class under the name MCP3008
+
+    class MockAnalogIn:
+        def __init__(self, mcp_chip_instance, pin_number, is_differential=False):
+            self._mcp = mcp_chip_instance
+            self._pin_number = pin_number
+            self._is_differential = is_differential
+            print(f"[HAL_Mock] MockAnalogIn created for pin {pin_number} on mock MCP chip: {type(self._mcp)}.")
+
+        @property
+        def value(self):
+            raw_value = self._mcp._read(self._pin_number, self._is_differential)
+            return raw_value
+
+        @property
+        def voltage(self):
+            if not hasattr(self._mcp, 'bits') or not hasattr(self._mcp, 'reference_voltage'):
+                print("[HAL_Mock_ERROR] MockMCP chip instance is missing 'bits' or 'reference_voltage' attributes.")
+                return 0.0 
+            
+            val = self.value 
+            ref_voltage = self._mcp.reference_voltage
+            num_bits = self._mcp.bits
+            max_adc_val = (2**num_bits) - 1
+
+            if max_adc_val == 0: # Should not happen with self.bits = 10
+                print("[HAL_Mock_ERROR] Max ADC value is zero (bits might be zero). Cannot calculate voltage.")
+                return 0.0
+
+            calculated_voltage = (val * ref_voltage) / max_adc_val
+            return calculated_voltage
+            
+    AnalogIn = MockAnalogIn # Export mock AnalogIn
 
 # Constants for RealButton event types
 BUTTON_NO_EVENT = 0
@@ -674,6 +765,183 @@ if IS_RASPBERRY_PI:
                 # For now, only change if already started. Or one could start it here.
                 # print("[HAL_DEBUG] PWM not active, cannot change duty cycle. Call start_led_pwm first.")
                 pass 
+
+        def get_event(self):
+            current_time = time.monotonic()
+            event = BUTTON_NO_EVENT
+
+            # --- Debouncing Logic ---
+            raw_state = GPIO.input(self.button_pin)
+            if raw_state != self._physical_button_state:
+                # Physical state changed, reset debounce timer
+                self._physical_button_state = raw_state
+                self._last_state_change_time = current_time
+                # print(f"[HAL_DEBUG] Button raw state: {'RELEASED' if raw_state == GPIO.HIGH else 'PRESSED'}")
+
+            # If debounce time has passed since last raw change, confirm the state
+            if (current_time - self._last_state_change_time) > self.debounce_time:
+                if self._debounced_button_state != self._physical_button_state:
+                    # print(f"[HAL_DEBUG] Button debounced state changed: {'RELEASED' if self._physical_button_state == GPIO.HIGH else 'PRESSED'}")
+                    self._debounced_button_state = self._physical_button_state
+                    # This is where we act on a confirmed press or release
+                    
+                    # --- Event State Machine based on debounced state changes ---
+                    if self._debounced_button_state == GPIO.LOW: # Button Pressed
+                        if self._button_event_state == "IDLE":
+                            self._button_event_state = "PRESSED"
+                            self._first_press_time = current_time
+                            # print(f"[HAL_DEBUG] Event state: IDLE -> PRESSED at {self._first_press_time}")
+                        elif self._button_event_state == "WAITING_FOR_SECOND_TAP":
+                            # This is the second press for a double tap
+                            if (current_time - self._first_press_time) < self.double_tap_window:
+                                print("[HAL] RealButton: Double tap detected.")
+                                event = BUTTON_DOUBLE_TAP
+                                self._button_event_state = "IDLE" # Reset state
+                            else:
+                                # Too late for a double tap, treat as a new single press sequence
+                                # print("[HAL_DEBUG] Second press too late for double tap, new press sequence.")
+                                self._button_event_state = "PRESSED"
+                                self._first_press_time = current_time 
+                    
+                    else: # Button Released (self._debounced_button_state == GPIO.HIGH)
+                        if self._button_event_state == "PRESSED":
+                            # Released after a press. Could be tap or start of double tap window.
+                            # Check if it was a long press first (before release was detected)
+                            # Note: Long press is typically checked while button is still held.
+                            # This release signifies the end of a press that wasn't long enough to be a long press yet.
+                            self._button_event_state = "WAITING_FOR_SECOND_TAP"
+                            self._first_release_time = current_time
+                            # print(f"[HAL_DEBUG] Event state: PRESSED -> WAITING_FOR_SECOND_TAP at {self._first_release_time}")
+                        # If it was WAITING_FOR_SECOND_TAP and released, it means nothing (already released)
+                        # If it was IDLE and released, it means nothing (already released)
+
+            # --- Timeout and Long Press Logic (checked every call, regardless of debounced state change) ---
+            if self._button_event_state == "PRESSED":
+                if (current_time - self._first_press_time) > self.long_press_duration:
+                    # print(f"[HAL_DEBUG] Checking for long press: current_time={current_time}, first_press_time={self._first_press_time}, diff={(current_time - self._first_press_time)}")
+                    if self._debounced_button_state == GPIO.LOW: # Still pressed
+                        print("[HAL] RealButton: Long press detected.")
+                        event = BUTTON_LONG_PRESS
+                        self._button_event_state = "IDLE" # Reset state after long press
+            
+            elif self._button_event_state == "WAITING_FOR_SECOND_TAP":
+                # If window for double tap expires, it was a single tap
+                if (current_time - self._first_press_time) > self.double_tap_window: 
+                    # Ensure it's based on time from first press to allow for second press to occur and be processed
+                    # More accurately, time from first release might be (current_time - self._first_release_time)
+                    if (current_time - self._first_release_time) > self.double_tap_window: # Check from release time
+                        print("[HAL] RealButton: Tap detected (double tap window expired).")
+                        event = BUTTON_TAP
+                        self._button_event_state = "IDLE" # Reset state
+
+            return event
+
+        def set_led(self, state):
+            if self.led_pin:
+                self._stop_pwm_if_active()
+                new_gpio_state = GPIO.HIGH if state else GPIO.LOW
+                GPIO.output(self.led_pin, new_gpio_state)
+                self._led_state = bool(state)
+                # print(f"[HAL] RealButton: LED set to {'ON' if self._led_state else 'OFF'}")
+
+        def start_led_pwm(self, duty_cycle_percent, frequency=None):
+            if not self.led_pin:
+                return
+            self._stop_pwm_if_active() # Stop any existing PWM or solid state
+            
+            active_frequency = frequency if frequency is not None else self.pwm_frequency
+            if active_frequency <= 0: active_frequency = 50 # Ensure valid frequency
+            
+            self.pwm_instance = GPIO.PWM(self.led_pin, active_frequency)
+            self.pwm_instance.start(max(0, min(100, duty_cycle_percent))) # Clamp duty cycle 0-100
+            self._led_state = True # Consider PWM as LED being active
+            # print(f"[HAL_DEBUG] PWM started at {active_frequency}Hz, {duty_cycle_percent}% duty cycle.")
+
+        def stop_led_pwm(self):
+            if not self.led_pin:
+                return
+            self._stop_pwm_if_active()
+            GPIO.output(self.led_pin, GPIO.LOW) # Ensure LED is off after stopping PWM
+            self._led_state = False
+
+        def change_led_pwm_duty_cycle(self, duty_cycle_percent):
+            if self.pwm_instance and self.led_pin:
+                self.pwm_instance.ChangeDutyCycle(max(0, min(100, duty_cycle_percent))) # Clamp
+                # print(f"[HAL_DEBUG] PWM duty cycle changed to {duty_cycle_percent}%.")
+            elif self.led_pin: # If PWM not active, but trying to change, maybe start it?
+                # For now, only change if already started. Or one could start it here.
+                # print("[HAL_DEBUG] PWM not active, cannot change duty cycle. Call start_led_pwm first.")
+                pass 
+
+        def get_event(self):
+            current_time = time.monotonic()
+            event = BUTTON_NO_EVENT
+
+            # --- Debouncing Logic ---
+            raw_state = GPIO.input(self.button_pin)
+            if raw_state != self._physical_button_state:
+                # Physical state changed, reset debounce timer
+                self._physical_button_state = raw_state
+                self._last_state_change_time = current_time
+                # print(f"[HAL_DEBUG] Button raw state: {'RELEASED' if raw_state == GPIO.HIGH else 'PRESSED'}")
+
+            # If debounce time has passed since last raw change, confirm the state
+            if (current_time - self._last_state_change_time) > self.debounce_time:
+                if self._debounced_button_state != self._physical_button_state:
+                    # print(f"[HAL_DEBUG] Button debounced state changed: {'RELEASED' if self._physical_button_state == GPIO.HIGH else 'PRESSED'}")
+                    self._debounced_button_state = self._physical_button_state
+                    # This is where we act on a confirmed press or release
+                    
+                    # --- Event State Machine based on debounced state changes ---
+                    if self._debounced_button_state == GPIO.LOW: # Button Pressed
+                        if self._button_event_state == "IDLE":
+                            self._button_event_state = "PRESSED"
+                            self._first_press_time = current_time
+                            # print(f"[HAL_DEBUG] Event state: IDLE -> PRESSED at {self._first_press_time}")
+                        elif self._button_event_state == "WAITING_FOR_SECOND_TAP":
+                            # This is the second press for a double tap
+                            if (current_time - self._first_press_time) < self.double_tap_window:
+                                print("[HAL] RealButton: Double tap detected.")
+                                event = BUTTON_DOUBLE_TAP
+                                self._button_event_state = "IDLE" # Reset state
+                            else:
+                                # Too late for a double tap, treat as a new single press sequence
+                                # print("[HAL_DEBUG] Second press too late for double tap, new press sequence.")
+                                self._button_event_state = "PRESSED"
+                                self._first_press_time = current_time 
+                    
+                    else: # Button Released (self._debounced_button_state == GPIO.HIGH)
+                        if self._button_event_state == "PRESSED":
+                            # Released after a press. Could be tap or start of double tap window.
+                            # Check if it was a long press first (before release was detected)
+                            # Note: Long press is typically checked while button is still held.
+                            # This release signifies the end of a press that wasn't long enough to be a long press yet.
+                            self._button_event_state = "WAITING_FOR_SECOND_TAP"
+                            self._first_release_time = current_time
+                            # print(f"[HAL_DEBUG] Event state: PRESSED -> WAITING_FOR_SECOND_TAP at {self._first_release_time}")
+                        # If it was WAITING_FOR_SECOND_TAP and released, it means nothing (already released)
+                        # If it was IDLE and released, it means nothing (already released)
+
+            # --- Timeout and Long Press Logic (checked every call, regardless of debounced state change) ---
+            if self._button_event_state == "PRESSED":
+                if (current_time - self._first_press_time) > self.long_press_duration:
+                    # print(f"[HAL_DEBUG] Checking for long press: current_time={current_time}, first_press_time={self._first_press_time}, diff={(current_time - self._first_press_time)}")
+                    if self._debounced_button_state == GPIO.LOW: # Still pressed
+                        print("[HAL] RealButton: Long press detected.")
+                        event = BUTTON_LONG_PRESS
+                        self._button_event_state = "IDLE" # Reset state after long press
+            
+            elif self._button_event_state == "WAITING_FOR_SECOND_TAP":
+                # If window for double tap expires, it was a single tap
+                if (current_time - self._first_press_time) > self.double_tap_window: 
+                    # Ensure it's based on time from first press to allow for second press to occur and be processed
+                    # More accurately, time from first release might be (current_time - self._first_release_time)
+                    if (current_time - self._first_release_time) > self.double_tap_window: # Check from release time
+                        print("[HAL] RealButton: Tap detected (double tap window expired).")
+                        event = BUTTON_TAP
+                        self._button_event_state = "IDLE" # Reset state
+
+            return event
 
         def cleanup(self):
             self._stop_pwm_if_active()
