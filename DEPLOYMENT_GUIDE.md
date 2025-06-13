@@ -1,6 +1,31 @@
 # Storyteller Box Deployment Guide: Creating a Master Image
 
-This guide outlines the process for creating a master Raspberry Pi OS image for the Storyteller Box. This allows for quick and easy replication of the software setup onto multiple Raspberry Pi units, ideal for creating gifts or multiple instances of the device.
+Thi8.  **Set Up Auto-Start Service:**
+    *   Copy the provided systemd service file to the system directory:
+        ```bash
+        sudo cp systemd/storyteller.service /etc/systemd/system/
+        ```
+    *   Reload the systemd daemon:
+        ```bash
+        sudo systemctl daemon-reload
+        ```
+    *   Enable the service to start on boot:
+        ```bash
+        sudo systemctl enable storyteller.service
+        ```
+9.  **Test Logging Setup:**
+    *   The system uses structured logging with rotation
+    *   Check that logging is configured correctly:
+        ```bash
+        # Run the application manually
+        cd /home/pi/storiellai/src
+        python3 box.py
+        
+        # Stop with Ctrl+C after a moment and check logs
+        cat storyteller.log
+        ```
+    *   Ensure log rotation works and error logs are captured
+10. **Thoroughly Test:**es the process for creating a master Raspberry Pi OS image for the Storyteller Box. This allows for quick and easy replication of the software setup onto multiple Raspberry Pi units, ideal for creating gifts or multiple instances of the device.
 
 ## Overview
 
@@ -38,24 +63,31 @@ The core idea is to set up one Raspberry Pi perfectly (the "master" Pi), then cr
         ```bash
         sudo apt install git -y
         ```
-    *   Install Python 3 pip and other system dependencies listed in your project's `readme.md` (e.g., `python3-pygame`, `libasound2-dev`, `libgpiod2`):
+    *   Install Python 3 pip and other system dependencies:
         ```bash
-        sudo apt install python3-pip python3-pygame libasound2-dev libgpiod2 -y # Add any other system deps
+        sudo apt install python3-pip python3-pygame libasound2-dev python3-dev libgpiod2 -y
         ```
 5.  **Clone Your Application:**
-    *   Navigate to the desired directory (e.g., `/home/pi/` or `/opt/`):
+    *   Navigate to the desired directory:
         ```bash
         cd /home/pi/
-        git clone https://github.com/dimarconicola/storiellai.git # Replace with your actual repo URL
+        git clone https://github.com/dimarconicola/storiellai.git
         cd storiellai
         ```
 6.  **Install Python Requirements:**
-    *   Navigate to your project directory if not already there.
     *   Install Python packages:
         ```bash
         pip3 install -r requirements.txt
         ```
-7.  **Set Up Auto-Start Service:**
+7.  **Hardware Configuration:**
+    *   If using the battery monitoring feature:
+        *   Connect a voltage divider to the power source and to MCP3008 Channel 1 (or as configured in `time_utils.py`)
+        *   The voltage divider should reduce the 5V input to a safe level for the ADC (≤3.3V)
+        *   Adjust `LOW_BATTERY_THRESHOLD` and `CRITICAL_BATTERY_THRESHOLD` in `src/utils/time_utils.py` if needed
+    *   If using custom LED patterns:
+        *   The system uses the `LedPatternManager` in `src/utils/led_utils.py` for visual feedback
+        *   You can customize patterns for different states (boot, ready, error, etc.)
+8.  **Set Up Auto-Start Service:**
     *   Copy your systemd service file to the system directory:
         ```bash
         sudo cp systemd/storyteller.service /etc/systemd/system/
@@ -79,7 +111,13 @@ The core idea is to set up one Raspberry Pi perfectly (the "master" Pi), then cr
     *   Remove unnecessary packages: `sudo apt autoremove -y`
     *   Clean package cache: `sudo apt clean`
     *   Clear bash history: `history -c && history -w`
-    *   Delete temporary files or logs not needed in the master image.
+    *   Clear log files to start fresh:
+        ```bash
+        cd /home/pi/storiellai/src
+        rm -f storyteller.log*
+        rm -f storyteller_error.log*
+        ```
+    *   Remove any test files or temporary data
 2.  **Wi-Fi Considerations for Gifts:**
     *   **Option 1 (Simplest for recipient if credentials match):** If the master Pi is configured with the recipient's Wi-Fi, you're set.
     *   **Option 2 (Generic Setup):** Remove specific Wi-Fi credentials from `/etc/wpa_supplicant/wpa_supplicant.conf` before imaging. The recipient will need to connect a keyboard/monitor or use Ethernet to set up their Wi-Fi.

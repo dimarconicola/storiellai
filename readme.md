@@ -13,15 +13,16 @@ description: A fully offline, NFC-triggered storytelling device for kids.
 
 1.  [Overview](#overview)
 2.  [How It Works](#how-it-works)
-3.  [Bill of Materials](#bill-of-materials)
-4.  [Hardware Setup](#hardware-setup)
-5.  [Software Setup](#software-setup)
-6.  [Adding New Stories](#adding-new-stories)
-7.  [Usage](#usage)
-8.  [Troubleshooting](#troubleshooting)
-9.  [Future Ideas](#future-ideas)
-10. [Repo Layout](#repo-layout)
-11. [Deploying to Multiple Devices (Creating a Master Image)](#deploying-to-multiple-devices)
+3.  [Repo Layout](#repo-layout)
+4.  [Bill of Materials](#bill-of-materials)
+5.  [Hardware Setup](#hardware-setup)
+6.  [Software Setup](#software-setup)
+7.  [Adding New Stories](#adding-new-stories)
+8.  [Battery Management and Error Handling](#battery-management-and-error-handling)
+9.  [Usage](#usage)
+10. [Troubleshooting](#troubleshooting)
+11. [Future Ideas](#future-ideas)
+12. [Deploying to Multiple Devices (Creating a Master Image)](#deploying-to-multiple-devices)
 
 ---
 
@@ -59,22 +60,98 @@ root/
 ├── src/
 │   ├── box.py                # Main application logic
 │   ├── config/
-│   │   └── app_config.py     # Configuration constants (paths, GPIO pins, etc.)
+│   │   ├── app_config.py     # Configuration constants (paths, GPIO pins, etc.)
+│   │   └── card_configs.py   # Card-specific configuration constants
 │   ├── utils/
+│   │   ├── __init__.py       # Package marker
 │   │   ├── audio_utils.py    # Audio engine and playback utilities
+│   │   ├── bgm_utils.py      # Background music utilities
 │   │   ├── data_utils.py     # JSON and file utilities
 │   │   ├── led_utils.py      # LED pattern manager
-│   │   ├── time_utils.py     # Time-based logic and battery management utilities
-│   │   └── bgm_utils.py      # Background music utilities
+│   │   ├── log_utils.py      # Structured logging with rotation
+│   │   ├── story_utils.py    # Story selection utilities
+│   │   └── time_utils.py     # Time-based logic and battery management utilities
 │   ├── hardware/             # Hardware abstraction layer (HAL)
-│   │   └── hal.py            # Defines real and mock hardware interfaces (NFC, Button, ADC)
-│   └── storiesoffline/       # JSON files for NFC card story mappings
-├── models/                   # Placeholder for future model files (if needed)
-├── audio/                    # Audio files (narration, BGM)
+│   │   ├── hal.py            # Defines real and mock hardware interfaces (NFC, Button, ADC)
+│   │   └── led_button_fsm.py # LED/Button finite state machine
+│   ├── stories/              # Online stories (API-based story generation)
+│   ├── storiesoffline/       # JSON files for NFC card story mappings
+│   └── audio/                # Audio files including error sound (error.mp3)
+├── models/                   # LLM model files (e.g., TinyLlama)
+├── tests/                    # Unit and integration tests
+│   ├── test_data_utils.py    # Tests for data utilities
+│   ├── test_hal_mocks.py     # Tests for hardware abstraction mocks
+│   └── test_integration_card_tap.py # Integration tests
+├── systemd/                  # System service files
+│   ├── storyteller.service   # Systemd service for Linux/Raspberry Pi
+│   └── storyteller.plist     # Launchd service for macOS
+├── clean_env/                # Virtual environment (should be in .gitignore)
 ├── requirements.txt          # Python dependencies
 ├── readme.md                 # Project documentation
-└── systemd/                  # Systemd service files for auto-start
+└── DEPLOYMENT_GUIDE.md       # Deployment instructions
 ```
+
+## Battery Management and Error Handling
+
+### Battery Monitoring
+
+The Storyteller Box includes built-in battery monitoring via the MCP3008 ADC:
+
+1. **Voltage Sensing**: The system monitors battery voltage through a voltage divider connected to the MCP3008 ADC.
+   * Default connection: Battery voltage (5V) → Voltage divider (e.g., 10kΩ + 10kΩ) → MCP3008 Channel 1
+   * The voltage divider reduces the 5V battery output to a safe 2.5V input for the ADC
+
+2. **Thresholds**:
+   * Low battery warning: 3.3V (configurable in `time_utils.py`)
+   * Critical battery shutdown: 3.0V (configurable in `time_utils.py`)
+
+3. **Feedback**:
+   * Low battery: LED warning pattern (rapid blinks)
+   * Critical battery: Safe shutdown sequence to prevent data corruption
+
+### Error Handling
+
+The system includes comprehensive error handling with user feedback:
+
+1. **Types of Errors Handled**:
+   * Missing/corrupt audio files
+   * Invalid card configuration (JSON errors)
+   * Hardware failures (NFC reader, audio)
+   * System resource issues
+   
+2. **User Feedback**:
+   * **Audio**: Error sound (`audio/error.mp3`) plays when an error occurs
+   * **Visual**: Distinct LED patterns indicate different error types
+     * Card read error: 3 quick blinks
+     * Audio error: Fast pulsing pattern
+     * System error: SOS pattern (3 short, 3 long, 3 short)
+
+3. **Logging**:
+   * Structured logging with rotation (max 5 files, 1MB each)
+   * Both console and file logging (`storyteller.log`)
+   * Detailed error traces for debugging
+
+4. **Resilience**:
+   * The system attempts to recover from errors when possible
+   * Resource cleanup ensures proper release of hardware
+   * Structured exception handling prevents crashes
+
+### LED Patterns
+
+The system uses various LED patterns to communicate system status:
+
+| State | Pattern | Description |
+|-------|---------|-------------|
+| Boot  | 3 slow blinks | System is initializing |
+| Ready | Slow breathing | System is ready for a card |
+| Playing | Solid on | Story is playing |
+| Paused | Fast breathing | Story is paused |
+| Card Read Error | 3 quick blinks | Invalid/unrecognized card |
+| Low Battery | 5 quick blinks every 30s | Battery needs charging |
+| Error | SOS pattern | System error occurred |
+| Shutdown | Fade out | System is shutting down |
+
+These patterns can be customized in `led_utils.py` through the `LedPatternManager` class.
 
 ---
 
@@ -235,29 +312,21 @@ The enclosure can be 3D-printed or custom-made to house all components securely.
     *   Ensure audio output is correctly configured in Raspberry Pi OS (e.g., to HDMI, 3.5mm jack, or I2S DAC). Use `raspi-config` under `System Options` -> `Audio`.
 
 6.  **Set up as a Service (Optional but Recommended):**
-    *   Create a systemd service file to run `box_offline.py` on boot.
-    *   Example `storyteller.service` file (`/etc/systemd/system/storyteller.service`):
-        ```ini
-        [Unit]
-        Description=Storyteller Box Service
-        After=network.target sound.target
-
-        [Service]
-        ExecStart=/usr/bin/python3 /home/pi/storiellai/src/box.py
-        WorkingDirectory=/home/pi/storiellai/src
-        StandardOutput=inherit
-        StandardError=inherit
-        Restart=always
-        User=pi # Or your username
-
-        [Install]
-        WantedBy=multi-user.target
+    *   The repository includes service files in the `systemd/` folder for both Linux (systemd) and macOS (launchd).
+    *   For Raspberry Pi (Linux), copy the service file:
+        ```bash
+        sudo cp systemd/storyteller.service /etc/systemd/system/
         ```
     *   Enable and start the service:
         ```bash
         sudo systemctl daemon-reload
         sudo systemctl enable storyteller.service
         sudo systemctl start storyteller.service
+        ```
+    *   For macOS, copy the plist file:
+        ```bash
+        cp systemd/storyteller.plist ~/Library/LaunchAgents/
+        launchctl load ~/Library/LaunchAgents/storyteller.plist
         ```
 
 ---
@@ -330,26 +399,53 @@ The offline version relies on pre-recorded audio files and JSON configurations.
     *   Check speaker and amplifier connections.
     *   Verify audio output settings in `raspi-config`.
     *   Test with `aplay /usr/share/sounds/alsa/Front_Center.wav`.
-    *   Check `pygame` mixer initialization in logs.
+    *   Check `pygame` mixer initialization in logs: `cat src/storyteller.log | grep mixer`.
+
 *   **Volume knob not working:**
     *   Verify MCP3008 wiring, especially SPI connections (CLK, MISO, MOSI, CS) and power (VDD, VREF, GNDs).
-    *   Ensure the correct ADC channel is used in `hal.py`.
+    *   Ensure the correct ADC channel is used in `app_config.py` (`ADC_CHANNEL_VOLUME`).
     *   Check potentiometer wiring (GND, Wiper to ADC channel, 3.3V).
     *   Test the MCP3008 with a simple Python script example from the Adafruit library.
+
 *   **NFC card not read:**
     *   Verify PN532 wiring and SPI configuration.
-    *   Ensure the correct Python library for PN532 is installed and used.
     *   Check if the NFC card UID matches a `card_<UID>.json` file.
+    *   Look for NFC reader errors in the log: `cat src/storyteller.log | grep UID`.
+    *   Try creating a card with a simple numeric UID (e.g., "000001").
+
 *   **Script not running on boot:**
     *   Check systemd service status: `sudo systemctl status storyteller.service`.
     *   Check service logs: `journalctl -u storyteller.service`.
+    *   Verify paths in `storyteller.service` match your actual installation.
+
+*   **LED not working:**
+    *   Check the LED connection to the GPIO pin specified in `app_config.py`.
+    *   Verify the button's LED wiring (usually has a positive and ground connection).
+    *   Test with a simple Python script to toggle the LED.
+
+*   **Battery monitoring issues:**
+    *   Verify the voltage divider is correctly connected to the MCP3008.
+    *   Check the channel assignment in `time_utils.py`.
+    *   Test the ADC with a simple script to read and print the voltage.
+    *   Look for battery-related entries in the log: `cat src/storyteller.log | grep battery`.
+
+*   **Unexpected errors or crashes:**
+    *   Check the structured logs for details: `cat src/storyteller.log`.
+    *   Look for error traces: `cat src/storyteller_error.log`.
+    *   If the error is reproducible, try running manually: `cd src && python box.py`.
+    *   Check if audio files exist and aren't corrupted.
 
 ---
 
 ## Future Ideas
 
-*   More sophisticated LED patterns for different states (e.g., story finished, error).
-*   Web interface for managing stories on the SD card (would require adding back some web server components like Flask, but could still be local network only).
-*   Support for multiple narrations per story part (e.g., different voices).
-*   Battery power option with low-battery warning/shutdown.
-*   "Shuffle all stories" mode, perhaps triggered by a special NFC card or a different button combination.
+*   Add gesture control (tap sequence patterns for different functions)
+*   Create a simple web interface for managing stories on the SD card (accessible via local network)
+*   Support for multiple narrations per story (different voices, languages)
+*   "Shuffle all stories" mode triggered by a special NFC card
+*   Ambient light sensor to automatically adjust LED brightness
+*   Sleep timer function (play for N minutes then fade out)
+*   Record and play back child's own narration
+*   Add simple text-to-speech capability for dynamic content
+*   Incorporate a small display for basic status information and story titles
+*   Create companion app for managing content via Bluetooth
