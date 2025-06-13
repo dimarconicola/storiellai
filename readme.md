@@ -21,6 +21,7 @@ description: A fully offline, NFC-triggered storytelling device for kids.
 8.  [Troubleshooting](#troubleshooting)
 9.  [Future Ideas](#future-ideas)
 10. [Repo Layout](#repo-layout)
+11. [Deploying to Multiple Devices (Creating a Master Image)](#deploying-to-multiple-devices)
 
 ---
 
@@ -74,6 +75,13 @@ root/
 ├── readme.md                 # Project documentation
 └── systemd/                  # Systemd service files for auto-start
 ```
+
+---
+
+## Deploying to Multiple Devices
+
+For instructions on how to create a master SD card image to easily set up multiple Storyteller Boxes (e.g., for gifts), please refer to the detailed guide:
+[Storyteller Box Deployment Guide: Creating a Master Image](DEPLOYMENT_GUIDE.md)
 
 ---
 
