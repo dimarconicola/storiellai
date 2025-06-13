@@ -124,8 +124,11 @@ def main():
     # System booting up: show boot sequence
     led_manager.set_boot_sequence()
     play_boot_sound()
-    time.sleep(1.0)  # Allow boot sequence to start
-    
+    # Wait for boot sound to finish and give a slight pause
+    while pygame.mixer.get_busy(): # Wait for sound to finish
+        time.sleep(0.1)
+    time.sleep(0.5)  # Additional pause after boot sound
+
     # Calculate total startup time
     total_startup_time = time.time() - start_time
     logger.info(f"Total startup time: {total_startup_time*1000:.1f}ms")
@@ -174,6 +177,11 @@ def main():
                     pygame.mixer.stop()
                     led_manager.set_loading_pattern()
                     play_transition_sound()
+                    # Wait for transition sound to finish and add a pause
+                    while pygame.mixer.get_busy():
+                        time.sleep(0.1)
+                    time.sleep(0.3)
+
                     card_data = load_card_stories(current_card_uid)
                     if card_data and card_data.get("stories"):
                         stories = card_data["stories"]
@@ -214,6 +222,11 @@ def main():
                 current_card_uid = uid
                 led_manager.set_attention_pattern(count=1)
                 play_transition_sound()
+                # Wait for transition sound to finish and add a pause
+                while pygame.mixer.get_busy():
+                    time.sleep(0.1)
+                time.sleep(0.3)
+
                 # Preload next card in background
                 if uid in ["000000", "000001", "000002", "000003", "000004"]:
                     next_uid = f"{int(uid) + 1:06d}"
@@ -227,6 +240,10 @@ def main():
                     logger.error(f"Invalid or missing JSON for card {uid}")
                     led_manager.set_card_sequence(is_valid=False)
                     play_card_invalid_sound()
+                    # Wait for invalid sound to finish and add a pause
+                    while pygame.mixer.get_busy():
+                        time.sleep(0.1)
+                    time.sleep(0.3)
                     play_error_sound()
                     current_card_uid = None
                     state = STATE_IDLE
@@ -235,6 +252,10 @@ def main():
                     logger.warning(f"Empty card: no stories for card {uid}")
                     led_manager.set_pattern('colorshift', levels=[50, 0, 50, 0], duration=0.2, count=3, next_pattern='breathing')
                     play_card_invalid_sound()
+                    # Wait for invalid sound to finish and add a pause
+                    while pygame.mixer.get_busy():
+                        time.sleep(0.1)
+                    time.sleep(0.3)
                     play_error_sound()
                     current_card_uid = None
                     state = STATE_IDLE
@@ -248,12 +269,20 @@ def main():
                     logger.error(f"Audio file not found: {current_narration_path}")
                     led_manager.set_error_pattern(count=2)
                     play_card_invalid_sound()
+                    # Wait for invalid sound to finish and add a pause
+                    while pygame.mixer.get_busy():
+                        time.sleep(0.1)
+                    time.sleep(0.3)
                     play_error_sound()
                     current_card_uid = None
                     state = STATE_IDLE
                     continue
                 logger.info(f"Transitioning to PLAYING state")
                 play_card_valid_sound()
+                # Wait for card valid sound to finish and add a pause
+                while pygame.mixer.get_busy():
+                    time.sleep(0.1)
+                time.sleep(0.3)
                 play_narration_with_bgm(current_narration_path, current_bgm_tone)
                 led_manager.set_card_sequence(is_valid=True)
                 state = STATE_PLAYING
