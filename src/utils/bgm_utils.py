@@ -14,7 +14,7 @@ TONE_TO_BGM = {
 }
 
 BGM_INTRO_VOLUME = 0.7
-BGM_NARRATION_VOLUME = 0.15
+BGM_NARRATION_VOLUME = 0.10  # Was 0.15
 BGM_OUTRO_VOLUME = 0.2
 
 def get_bgm_file_for_tone(tone):
