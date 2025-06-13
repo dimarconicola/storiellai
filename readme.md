@@ -100,55 +100,42 @@ root/
 
 ## Hardware Setup
 
-*(Detailed wiring diagrams and enclosure design files will be added here or in a separate `hardware/` directory.)*
+### Wiring Instructions
 
-**General Connections:**
-*   Ensure all components share a common ground (GND) with the Raspberry Pi.
-*   Use appropriate resistors for LEDs if not built into the button assembly.
+#### Raspberry Pi Connections
+| Component             | Raspberry Pi Pin (BCM) | Notes                                      |
+|-----------------------|-------------------------|--------------------------------------------|
+| **PN532 NFC Reader**  |                         |                                            |
+| VCC                   | 3.3V or 5V             | Check PN532 module specs                  |
+| GND                   | GND                    | Common ground                             |
+| SCK/SCLK              | GPIO11 (SCLK)          | SPI Clock                                 |
+| MISO                  | GPIO9 (MISO)           | SPI Master In Slave Out                  |
+| MOSI                  | GPIO10 (MOSI)          | SPI Master Out Slave In                  |
+| SS/SSEL/CS            | GPIO8 (CE0)            | SPI Chip Select                          |
+| IRQ (optional)        | GPIO25                 | Interrupt Request                         |
+| RST (optional)        | GPIO17                 | Reset                                     |
+| **LED Button**        |                         |                                            |
+| LED+                  | GPIO24                 | LED control                               |
+| Button                | GPIO23                 | Button input                              |
+| **Rotary Potentiometer** |                         |                                            |
+| Signal                | MCP3008 Channel 0      | Analog input via ADC                     |
+| **Speaker & Amplifier** |                         |                                            |
+| Speaker+              | PAM8302A Output+       | Connect to speaker                        |
+| Speaker-              | PAM8302A Output-       | Connect to speaker                        |
+| VIN                   | 5V                     | Power supply                              |
+| GND                   | GND                    | Common ground                             |
 
-1.  **Raspberry Pi:** Prepare the Raspberry Pi by flashing Raspberry Pi OS Lite.
-2.  **NFC Reader (PN532 - SPI):**
-    *   Connect to the Raspberry Pi via SPI.
-    *   **PN532 Pins -> Raspberry Pi Pins (BCM numbering):**
-        *   `VCC` -> `3.3V` or `5V` (check PN532 module specs)
-        *   `GND` -> `GND`
-        *   `SCK/SCLK` (PN532) -> `GPIO11` (Pi SCLK)
-        *   `MISO` (PN532) -> `GPIO9` (Pi MISO)
-        *   `MOSI` (PN532) -> `GPIO10` (Pi MOSI)
-        *   `SS/SSEL/CS` (PN532) -> `GPIO8` (Pi CE0) (or another GPIO if using software SPI select, e.g., `GPIO7` / CE1)
-        *   `IRQ` (PN532, optional but recommended) -> A chosen GPIO (e.g., `GPIO25`)
-        *   `RST` (PN532, optional) -> A chosen GPIO (e.g., `GPIO17`)
-3.  **Audio Output (PAM8302A Amplifier & Speaker):**
-    *   **PAM8302A Pins -> Raspberry Pi / Speaker:**
-        *   `Vin` -> `5V` (Pi)
-        *   `GND` -> `GND` (Pi)
-        *   `A+` (Audio Input +) -> Raspberry Pi\'s `Audio L` (Tip of 3.5mm jack) or `DAC_L` if using I2S DAC.
-        *   `A-` (Audio Input -) -> Raspberry Pi\'s `Audio GND` (Sleeve of 3.5mm jack) or `DAC_R` (can be tied to GND for mono from stereo source).
-        *   `Speaker Output +` -> Speaker `+` terminal
-        *   `Speaker Output -` -> Speaker `-` terminal
-    *   *Alternatively, use an I2S DAC like MAX98357A or PCM5102A for better audio quality, connecting to I2S pins on the Pi.*
-4.  **LED Button:**
-    *   **Button Pins -> Raspberry Pi Pins (BCM numbering):**
-        *   Button Switch Terminal 1 -> `GPIO23` (or chosen button pin)
-        *   Button Switch Terminal 2 -> `GND`
-        *   LED Anode (+) (usually marked) -> `GPIO24` (or chosen LED pin, via a current-limiting resistor e.g., 220-330 Ohm if not built-in)
-        *   LED Cathode (-) (usually marked) -> `GND`
-5.  **Volume Control (Potentiometer & MCP3008 ADC):**
-    *   **Potentiometer Pins:**
-        *   Terminal 1 (e.g., CCW limit) -> `GND` (Pi)
-        *   Terminal 2 (Wiper) -> `CH0` (MCP3008, or chosen ADC channel)
-        *   Terminal 3 (e.g., CW limit) -> `3.3V` (Pi)
-    *   **MCP3008 Pins -> Raspberry Pi Pins (BCM numbering):**
-        *   `VDD` (MCP3008) -> `3.3V` (Pi)
-        *   `VREF` (MCP3008) -> `3.3V` (Pi) (connect to VDD for ratiometric reading)
-        *   `AGND` (MCP3008) -> `GND` (Pi)
-        *   `DGND` (MCP3008) -> `GND` (Pi)
-        *   `CLK` (MCP3008) -> `GPIO11` (Pi SCLK)
-        *   `DOUT` (MCP3008 MISO) -> `GPIO9` (Pi MISO)
-        *   `DIN` (MCP3008 MOSI) -> `GPIO10` (Pi MOSI)
-        *   `CS/SHDN` (MCP3008 Chip Select) -> `GPIO7` (Pi CE1) (or another free GPIO, e.g., `GPIO22`. Cannot share CE0 with PN532 if both are on SPI0)
-        *   `CH0` - `CH7`: Analog inputs. Connect potentiometer wiper to one of these (e.g., `CH0`).
-6.  **Power:** Power the Raspberry Pi using the Micro USB power supply.
+### Enclosure Design
+
+The enclosure can be 3D-printed or custom-made to house all components securely. Ensure the following:
+
+1. **Ventilation**: Include openings for airflow to prevent overheating.
+2. **Access Points**: Provide cutouts for the NFC reader, LED button, and speaker.
+3. **Battery Compartment**: If using a powerbank, design a compartment to hold it securely.
+
+#### Placeholder for Diagrams
+- Wiring Diagram: *(To be added)*
+- Enclosure Design Files: *(To be added)*
 
 ---
 
