@@ -116,8 +116,11 @@ def main():
         master_volume_level = volume_ctrl.get_volume() 
         set_system_volume(master_volume_level)
 
+        # System booting up: fast breathing pattern
         led_manager = LedPatternManager(button)
-        led_manager.set_pattern('breathing', period=2.5) # Start with breathing for idle
+        led_manager.set_pattern('breathing', period=1.0) # Fast breathing for boot
+        time.sleep(1.5)  # Show boot pattern for 1.5s
+        led_manager.set_pattern('breathing', period=2.5) # Normal breathing for idle/ready
 
         while state != STATE_SHUTTING_DOWN:
             led_manager.update()
@@ -191,9 +194,16 @@ def main():
                 pygame.mixer.stop()
                 current_card_uid = uid
                 card_data = load_card_stories(uid)
-                if not card_data or not card_data.get("stories"):
-                    logger.error(f"No stories for card {uid}")
-                    led_manager.set_pattern('blink', period=0.15, duty=0.5, count=5)
+                if not card_data:
+                    logger.error(f"Invalid or missing JSON for card {uid}")
+                    led_manager.set_pattern('blink', period=0.1, duty=0.5, count=8)  # Fast blink for invalid card
+                    play_error_sound()
+                    current_card_uid = None
+                    state = STATE_IDLE
+                    continue
+                if not card_data.get("stories"):
+                    logger.warning(f"Empty card: no stories for card {uid}")
+                    led_manager.set_pattern('blink', period=0.5, duty=0.1, count=3)  # 3 slow blinks for empty card
                     play_error_sound()
                     current_card_uid = None
                     state = STATE_IDLE
