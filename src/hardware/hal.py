@@ -128,12 +128,12 @@ class MockUIDReader:
     Mock NFC UID reader for development/testing without hardware.
     Simulates 10 unique UIDs, cycles through them on each read.
     """
-    def __init__(self):
+    def __init__(self) -> None:
         # 10 unique UIDs
-        self.uids = [f"{i:06d}" for i in range(10)]
-        self.index = 0
+        self.uids: list[str] = [f"{i:06d}" for i in range(10)]
+        self.index: int = 0
 
-    def read_uid(self):
+    def read_uid(self) -> str:
         # Simulate reading a card after 1-2 seconds
         time.sleep(random.uniform(1, 2))
         uid = self.uids[self.index]
@@ -141,7 +141,7 @@ class MockUIDReader:
         self.index = (self.index + 1) % len(self.uids)
         return uid
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         print("[HAL_Mock] MockUIDReader cleanup.")
 
 class MockButton:
@@ -149,16 +149,16 @@ class MockButton:
     Mock button with LED for development/testing.
     Simulates button events and LED state, including PWM for breathing/blink effects.
     """
-    def __init__(self, button_pin=None, led_pin=None, long_press_duration=1.5, double_tap_window=0.3):
+    def __init__(self, button_pin=None, led_pin=None, long_press_duration=1.5, double_tap_window=0.3) -> None:
         print(f"[HAL_Mock] Initialized MockButton (Pin: {button_pin}, LED: {led_pin})")
-        self._led_state = False
-        self._led_pwm_active = False
-        self._led_pwm_dc = 0
+        self._led_state: bool = False
+        self._led_pwm_active: bool = False
+        self._led_pwm_dc: float = 0
         # To simulate event detection for testing main loop
-        self._event_queue = [] 
-        self._last_event_time = time.monotonic()
+        self._event_queue: list[int] = [] 
+        self._last_event_time: float = time.monotonic()
 
-    def get_event(self):
+    def get_event(self) -> int:
         # Simulate events for testing, e.g., by typing 't' for tap, 'd' for double, 'l' for long
         # For automated simulation, we can queue them up
         if self._event_queue:
@@ -173,33 +173,33 @@ class MockButton:
                 return evt
         return BUTTON_NO_EVENT
 
-    def set_led(self, state):
+    def set_led(self, state: bool) -> None:
         self._led_pwm_active = False
         self._led_state = bool(state)
         print(f"[HAL_Mock] MockButton: LED set to {'ON' if self._led_state else 'OFF'} (PWM disabled)")
 
-    def start_led_pwm(self, duty_cycle_percent, frequency=50):
+    def start_led_pwm(self, duty_cycle_percent: float, frequency: int = 50) -> None:
         self._led_state = True # Consider LED on
         self._led_pwm_active = True
         self._led_pwm_dc = duty_cycle_percent
         print(f"[HAL_Mock] MockButton: LED PWM started at {frequency}Hz, {duty_cycle_percent}% duty cycle.")
 
-    def stop_led_pwm(self):
+    def stop_led_pwm(self) -> None:
         self._led_pwm_active = False
         self._led_state = False
         print(f"[HAL_Mock] MockButton: LED PWM stopped, LED OFF.")
 
-    def change_led_pwm_duty_cycle(self, duty_cycle_percent):
+    def change_led_pwm_duty_cycle(self, duty_cycle_percent: float) -> None:
         if self._led_pwm_active:
             self._led_pwm_dc = duty_cycle_percent
             print(f"[HAL_Mock] MockButton: LED PWM duty cycle changed to {duty_cycle_percent}%.")
         else:
             print(f"[HAL_Mock] MockButton: PWM not active, cannot change duty cycle.")
 
-    def get_led_state(self):
+    def get_led_state(self) -> bool:
         return self._led_state
 
-    def cleanup(self):
+    def cleanup(self) -> None:
         print("[HAL_Mock] MockButton cleanup.")
 
 class MockVolumeControl:

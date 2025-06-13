@@ -11,7 +11,7 @@ import logging
 from utils.log_utils import logger
 
 
-def load_card_stories(uid):
+def load_card_stories(uid: str) -> dict | None:
     """
     Load stories for a card from JSON file.
     
@@ -42,7 +42,7 @@ def load_card_stories(uid):
         return None
 
 
-def verify_audio_files():
+def verify_audio_files() -> None:
     """Verify all audio files exist and are valid"""
     logger.info("Starting audio file verification...")
     
