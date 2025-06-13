@@ -66,7 +66,7 @@ root/
 │   │   └── bgm_utils.py      # Background music utilities
 │   ├── hardware/             # Hardware abstraction layer
 │   └── storiesoffline/       # JSON files for NFC card story mappings
-├── models/                   # Pre-trained models (e.g., TinyLlama)
+├── models/                   # Placeholder for future model files (if needed)
 ├── audio/                    # Audio files (narration, BGM)
 ├── requirements.txt          # Python dependencies
 ├── readme.md                 # Project documentation
