@@ -123,20 +123,24 @@ if IS_RASPBERRY_PI:
             pass
 
     class RealButton:
-        def __init__(self, button_pin, led_pin=None, long_press_duration=1.5, double_tap_window=0.3):
+        def __init__(self, button_pin, led_pin=None, long_press_duration=1.5, double_tap_window=0.3, debounce_time=0.05):
             self.button_pin = button_pin
             self.led_pin = led_pin
             self.long_press_duration = long_press_duration
             self.double_tap_window = double_tap_window
+            self.debounce_time = debounce_time # Time to wait for debounce
 
-            self._button_state = GPIO.HIGH # Assuming pull-up resistor (pressed is LOW)
             self._led_state = False
             
-            self._last_press_time = 0
-            self._last_release_time = 0
-            self._press_count = 0
-            self._long_press_pending = False
-            self._last_event_check_time = time.monotonic()
+            # Button state variables
+            self._physical_button_state = GPIO.HIGH # Current physical reading
+            self._debounced_button_state = GPIO.HIGH # State after debouncing
+            self._last_state_change_time = 0 # Time of last confirmed state change
+            
+            # Event detection state machine variables
+            self._button_event_state = "IDLE" # States: IDLE, PRESSED, WAITING_FOR_SECOND_TAP
+            self._first_press_time = 0
+            self._first_release_time = 0
 
             GPIO.setmode(GPIO.BCM) # Use Broadcom pin numbering
             GPIO.setup(self.button_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
@@ -144,77 +148,76 @@ if IS_RASPBERRY_PI:
             if self.led_pin:
                 GPIO.setup(self.led_pin, GPIO.OUT)
                 GPIO.output(self.led_pin, GPIO.LOW) # LED off initially
-            print(f"[HAL] Initialized RealButton on GPIO {self.button_pin} (LED: {self.led_pin})")
+            print(f"[HAL] Initialized RealButton on GPIO {self.button_pin} (LED: {self.led_pin}, Debounce: {self.debounce_time*1000:.0f}ms)")
 
         def get_event(self):
             current_time = time.monotonic()
             event = BUTTON_NO_EVENT
+
+            # --- Debouncing Logic ---
+            raw_state = GPIO.input(self.button_pin)
+            if raw_state != self._physical_button_state:
+                # Physical state changed, reset debounce timer
+                self._physical_button_state = raw_state
+                self._last_state_change_time = current_time
+                # print(f"[HAL_DEBUG] Button raw state: {'RELEASED' if raw_state == GPIO.HIGH else 'PRESSED'}")
+
+            # If debounce time has passed since last raw change, confirm the state
+            if (current_time - self._last_state_change_time) > self.debounce_time:
+                if self._debounced_button_state != self._physical_button_state:
+                    # print(f"[HAL_DEBUG] Button debounced state changed: {'RELEASED' if self._physical_button_state == GPIO.HIGH else 'PRESSED'}")
+                    self._debounced_button_state = self._physical_button_state
+                    # This is where we act on a confirmed press or release
+                    
+                    # --- Event State Machine based on debounced state changes ---
+                    if self._debounced_button_state == GPIO.LOW: # Button Pressed
+                        if self._button_event_state == "IDLE":
+                            self._button_event_state = "PRESSED"
+                            self._first_press_time = current_time
+                            # print(f"[HAL_DEBUG] Event state: IDLE -> PRESSED at {self._first_press_time}")
+                        elif self._button_event_state == "WAITING_FOR_SECOND_TAP":
+                            # This is the second press for a double tap
+                            if (current_time - self._first_press_time) < self.double_tap_window:
+                                print("[HAL] RealButton: Double tap detected.")
+                                event = BUTTON_DOUBLE_TAP
+                                self._button_event_state = "IDLE" # Reset state
+                            else:
+                                # Too late for a double tap, treat as a new single press sequence
+                                # print("[HAL_DEBUG] Second press too late for double tap, new press sequence.")
+                                self._button_event_state = "PRESSED"
+                                self._first_press_time = current_time 
+                    
+                    else: # Button Released (self._debounced_button_state == GPIO.HIGH)
+                        if self._button_event_state == "PRESSED":
+                            # Released after a press. Could be tap or start of double tap window.
+                            # Check if it was a long press first (before release was detected)
+                            # Note: Long press is typically checked while button is still held.
+                            # This release signifies the end of a press that wasn't long enough to be a long press yet.
+                            self._button_event_state = "WAITING_FOR_SECOND_TAP"
+                            self._first_release_time = current_time
+                            # print(f"[HAL_DEBUG] Event state: PRESSED -> WAITING_FOR_SECOND_TAP at {self._first_release_time}")
+                        # If it was WAITING_FOR_SECOND_TAP and released, it means nothing (already released)
+                        # If it was IDLE and released, it means nothing (already released)
+
+            # --- Timeout and Long Press Logic (checked every call, regardless of debounced state change) ---
+            if self._button_event_state == "PRESSED":
+                if (current_time - self._first_press_time) > self.long_press_duration:
+                    # print(f"[HAL_DEBUG] Checking for long press: current_time={current_time}, first_press_time={self._first_press_time}, diff={(current_time - self._first_press_time)}")
+                    if self._debounced_button_state == GPIO.LOW: # Still pressed
+                        print("[HAL] RealButton: Long press detected.")
+                        event = BUTTON_LONG_PRESS
+                        self._button_event_state = "IDLE" # Reset state after long press
             
-            # Read current physical state of the button
-            physical_button_state = GPIO.input(self.button_pin)
-
-            # Edge detection: State changed from HIGH to LOW (pressed)
-            if self._button_state == GPIO.HIGH and physical_button_state == GPIO.LOW:
-                self._last_press_time = current_time
-                self._long_press_pending = True
-                self._press_count += 1
-                print(f"[HAL_DEBUG] Button pressed at {self._last_press_time}, count: {self._press_count}")
-
-            # Edge detection: State changed from LOW to HIGH (released)
-            elif self._button_state == GPIO.LOW and physical_button_state == GPIO.HIGH:
-                self._last_release_time = current_time
-                self._long_press_pending = False
-                print(f"[HAL_DEBUG] Button released at {self._last_release_time}")
-
-                if self._press_count == 1: # First press in a potential double tap sequence
-                    # Wait for double_tap_window to see if a second press occurs
-                    # This simple get_event won't handle this well without more state/delay
-                    # For now, a release after one press is a TAP, unless it was long
-                    # This part needs refinement for robust double tap
-                    pass # Handled by timeout logic below
-
-            # Update internal button state
-            self._button_state = physical_button_state
-
-            # Check for long press
-            if self._long_press_pending and (current_time - self._last_press_time) > self.long_press_duration:
-                if self._button_state == GPIO.LOW: # Still pressed
-                    print("[HAL] RealButton: Long press detected.")
-                    event = BUTTON_LONG_PRESS
-                    self._long_press_pending = False # Event triggered
-                    self._press_count = 0 # Reset sequence
-            
-            # Check for tap or double tap (after button release or window expiry)
-            if event == BUTTON_NO_EVENT and self._press_count > 0 and physical_button_state == GPIO.HIGH: # Button is released
-                if (current_time - self._last_press_time) < self.long_press_duration: # Not a long press
-                    if self._press_count == 1 and (current_time - self._last_release_time) > self.double_tap_window :
-                        # Single tap if double tap window has passed since its release
-                        print("[HAL] RealButton: Tap detected.")
+            elif self._button_event_state == "WAITING_FOR_SECOND_TAP":
+                # If window for double tap expires, it was a single tap
+                if (current_time - self._first_press_time) > self.double_tap_window: 
+                    # Ensure it's based on time from first press to allow for second press to occur and be processed
+                    # More accurately, time from first release might be (current_time - self._first_release_time)
+                    if (current_time - self._first_release_time) > self.double_tap_window: # Check from release time
+                        print("[HAL] RealButton: Tap detected (double tap window expired).")
                         event = BUTTON_TAP
-                        self._press_count = 0
-                    elif self._press_count >= 2 and (current_time - self._last_press_time) < self.double_tap_window: # Check time from first press
-                        # This logic is tricky; a proper state machine is better.
-                        # Let's simplify: if two presses occurred quickly.
-                        # This needs to be based on time between releases or presses.
-                        # A simpler approach: if _press_count is 2 and last_release_time is recent
-                        if self._press_count == 2: # Simplified: second release
-                             print("[HAL] RealButton: Double tap detected.")
-                             event = BUTTON_DOUBLE_TAP
-                             self._press_count = 0
+                        self._button_event_state = "IDLE" # Reset state
 
-            # Reset press_count if too much time has passed since last activity
-            if self._press_count > 0 and (current_time - self._last_press_time) > (self.double_tap_window + 0.1): # A bit more than window
-                 if physical_button_state == GPIO.HIGH and event == BUTTON_NO_EVENT and (current_time - self._last_release_time) > self.double_tap_window:
-                    # If it was a single press and window expired, it's a tap
-                    if (self._last_press_time > self._last_release_time and self._press_count ==1 ): # pressed but not yet released for tap
-                        pass # still waiting for release or long press
-                    elif self._press_count == 1: # it was released, window passed
-                        print("[HAL] RealButton: Tap detected (timeout).")
-                        event = BUTTON_TAP
-                        self._press_count = 0
-
-
-            self._last_event_check_time = current_time
             return event
 
         def set_led(self, state):
