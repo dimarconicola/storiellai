@@ -381,15 +381,23 @@ The offline version relies on pre-recorded audio files and JSON configurations.
 
 ## Usage
 
-1.  **Power On:** Connect the power supply. The system should boot, and the `box.py` script will start (if set up as a service). The LED button might pulse to indicate it\'s ready.
-2.  **Place Card:** Place an NFC card on the reader.
-3.  **Listen:** The story associated with the card will begin playing with background music. The volume can be adjusted using the volume knob.
-4.  **Button Controls:**
-    *   **Tap (Short Press):**
-        *   If a story is playing: Pause/Resume the story.
-        *   If idle (no story playing/paused): Replay the last played story from the beginning. If no story was played since startup or after a new card, this might do nothing or play a default "ready" sound if implemented.
-    *   **Double-Tap:** Skip to a new random story from the *current* NFC card (if the card has multiple stories). If the card has only one story, or if no card is active, this might replay the current story or do nothing.
-    *   **Long Press (e.g., 1.5-3 seconds):** Initiate a safe shutdown of the Raspberry Pi. The LED might blink rapidly during shutdown.
+1.  **Power On**: Connect the power supply or ensure the battery is charged. The device will boot up automatically.
+2.  **Ready State**: The LED will indicate the device is ready (e.g., breathing pattern).
+3.  **Tap a Card**: Place an NFC card on the designated area.
+    *   The device will play a transition sound, then a card valid/invalid sound.
+    *   If valid, the corresponding story will begin with background music.
+4.  **Button Controls**:
+    *   **Tap**: Pause or resume the current story.
+    *   **Double-Tap**: If a story is playing or paused (or if a card is still considered active), this will select and play a new story from the *same card's* collection, respecting calm time.
+    *   **Long-Press (2 seconds)**: Initiate a safe shutdown. The LED will show a shutdown pattern, and a shutdown sound will play.
+5.  **Keyboard Controls (for development/debugging when a keyboard is connected)**:
+    *   Ensure the Pygame window ("Storyteller Control") has focus.
+    *   **'p'**: Toggle pause/resume for the current story.
+    *   **'n'**: Select and play a new story from the *currently active card's* collection (similar to a button double-tap).
+    *   **'q' or 'ESC'**: Quit the application (initiates shutdown).
+    *   **Ctrl+C (in terminal)**: Force quit the application.
+6.  **Volume Control**: Adjust the physical volume knob to change the audio level.
+7.  **Automatic Story Selection**: During calm hours (configurable in `app_config.py`), the device will prioritize "calm" stories.
 
 ---
 

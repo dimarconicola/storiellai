@@ -319,6 +319,21 @@ def play_error_sound():
     else:
         logger.error("Error sound file missing: error.mp3")
 
+def play_boot_sound():
+    """Play a sound at system boot."""
+    path = AUDIO_FOLDER / "boot.mp3"
+    if path.exists():
+        try:
+            sound = pygame.mixer.Sound(str(path))
+            sound.set_volume(1.0) # Consider making this configurable or use master_volume_level
+            sound.play()
+            logger.info("Played boot sound.")
+            # pygame.time.wait(600) # REMOVED - box.py will handle waiting by checking pygame.mixer.get_busy() and pumping events
+        except Exception as e:
+            logger.error(f"Failed to play boot sound: {e}")
+    else:
+        logger.warning("Boot sound file missing: boot.mp3")
+
 def play_card_valid_sound():
     """Play a sound for valid card recognition."""
     path = AUDIO_FOLDER / "card_valid.mp3"
@@ -328,7 +343,7 @@ def play_card_valid_sound():
             sound.set_volume(1.0)
             sound.play()
             logger.info("Played card valid sound.")
-            pygame.time.wait(400)
+            # pygame.time.wait(400) # REMOVED - box.py can handle waiting if needed
         except Exception as e:
             logger.error(f"Failed to play card valid sound: {e}")
     else:
@@ -343,7 +358,7 @@ def play_card_invalid_sound():
             sound.set_volume(1.0)
             sound.play()
             logger.info("Played card invalid sound.")
-            pygame.time.wait(400)
+            # pygame.time.wait(400) # REMOVED
         except Exception as e:
             logger.error(f"Failed to play card invalid sound: {e}")
     else:
@@ -358,26 +373,11 @@ def play_transition_sound():
             sound.set_volume(1.0)
             sound.play()
             logger.info("Played transition sound.")
-            pygame.time.wait(350)
+            # pygame.time.wait(350) # REMOVED
         except Exception as e:
             logger.error(f"Failed to play transition sound: {e}")
     else:
         logger.warning("Transition sound file missing: transition.mp3")
-
-def play_boot_sound():
-    """Play a sound at system boot."""
-    path = AUDIO_FOLDER / "boot.mp3"
-    if path.exists():
-        try:
-            sound = pygame.mixer.Sound(str(path))
-            sound.set_volume(1.0)
-            sound.play()
-            logger.info("Played boot sound.")
-            pygame.time.wait(600)
-        except Exception as e:
-            logger.error(f"Failed to play boot sound: {e}")
-    else:
-        logger.warning("Boot sound file missing: boot.mp3")
 
 def play_shutdown_sound():
     """Play a sound at system shutdown."""
@@ -388,7 +388,7 @@ def play_shutdown_sound():
             sound.set_volume(1.0)
             sound.play()
             logger.info("Played shutdown sound.")
-            pygame.time.wait(600)
+            # pygame.time.wait(600) # REMOVED
         except Exception as e:
             logger.error(f"Failed to play shutdown sound: {e}")
     else:
@@ -403,7 +403,7 @@ def play_pause_sound():
             sound.set_volume(1.0)
             sound.play()
             logger.info("Played pause sound.")
-            pygame.time.wait(350)
+            # pygame.time.wait(350) # REMOVED
         except Exception as e:
             logger.error(f"Failed to play pause sound: {e}")
     else:
@@ -418,7 +418,7 @@ def play_resume_sound():
             sound.set_volume(1.0)
             sound.play()
             logger.info("Played resume sound.")
-            pygame.time.wait(350)
+            # pygame.time.wait(350) # REMOVED
         except Exception as e:
             logger.error(f"Failed to play resume sound: {e}")
     else:
@@ -433,7 +433,7 @@ def play_success_sound():
             sound.set_volume(1.0)
             sound.play()
             logger.info("Played success sound.")
-            pygame.time.wait(400)
+            # pygame.time.wait(400) # REMOVED
         except Exception as e:
             logger.error(f"Failed to play success sound: {e}")
     else:

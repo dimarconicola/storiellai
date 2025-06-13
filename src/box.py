@@ -8,6 +8,7 @@ Handles NFC card reading, story selection, audio playback, button events, volume
 - Volume knob via MCP3008 ADC
 - LED feedback (solid, breathing, blink) via PWM
 - Hardware abstraction via hal.py for easy testing/mocking
+- Keyboard controls: 'p' (pause/resume), 'n' (new story), 'q'/ESC (quit)
 """
 
 import os
@@ -39,7 +40,7 @@ from utils.bgm_utils import stop_bgm
 # Import configuration
 from config.app_config import (
     STATE_IDLE, STATE_PLAYING, STATE_PAUSED, STATE_SHUTTING_DOWN,
-    LED_OFF, LED_ON
+    LED_OFF, LED_ON, VOLUME_CHECK_INTERVAL, MAIN_LOOP_INTERVAL # Added VOLUME_CHECK_INTERVAL and MAIN_LOOP_INTERVAL
 )
 
 # Hardware components
@@ -62,15 +63,23 @@ def main():
     - Monitors battery status
     - Cleans up on exit
     """
+    # Defer Pygame display initialization
+    # pygame.init() # Moved lower
+    # pygame.display.set_mode((200, 100)) # Moved lower
+    # pygame.display.set_caption("Storyteller Control") # Moved lower
+
     global master_volume_level
     
     # Fast audio engine initialization
     start_time = time.time()
-    if not initialize_audio_engine():
+    if not initialize_audio_engine(): # This already calls pygame.mixer.init()
         logger.critical("Failed to initialize audio. Exiting.")
-        if button:
+        if IS_RASPBERRY_PI and 'button' in locals() and button: # Check if button was initialized
             led_manager = LedPatternManager(button)
             led_manager.set_pattern('blink', period=0.15, duty=0.5)
+        elif not IS_RASPBERRY_PI and 'button' in locals() and button: # Mock environment
+            # In a mock setup, we might not have a physical LED, but can log
+            logger.info("Mock LED: Blink pattern (0.15s period, 0.5 duty)")
         play_error_sound()
         return
     logger.info(f"Audio engine initialization took {(time.time() - start_time)*1000:.1f}ms")
@@ -78,24 +87,22 @@ def main():
     # Hardware initialization (extracted to a function)
     reader, button, volume_ctrl, adc = initialize_hardware()
     
-    # Check if critical hardware components initialized properly
     if reader is None or button is None or volume_ctrl is None:
         logger.critical("Critical hardware components failed to initialize")
-        if button:
+        if IS_RASPBERRY_PI and button: # Check if button was initialized before trying to use led_manager
             led_manager = LedPatternManager(button)
             led_manager.set_pattern('blink', period=0.1, duty=0.5)
-        play_error_sound()
-        return
+        elif not IS_RASPBERRY_PI and button: # Mock environment
+             logger.info("Mock LED: Blink pattern (0.1s period, 0.5 duty)")
+        play_error_sound() # Ensure error sound is played
+        return # Exit if hardware fails
     
-    # Set up LED manager
     led_manager = LedPatternManager(button)
     
-    # Start preloading BGM in main thread (critical for early response)
     preload_start = time.time()
-    preload_bgm()
+    preload_bgm() # This can take time
     logger.info(f"BGM preloading took {(time.time() - preload_start)*1000:.1f}ms")
     
-    # Start background preloading thread for narrations
     preload_thread = threading.Thread(target=background_preload, daemon=True)
     preload_thread.start()
     
@@ -105,67 +112,155 @@ def main():
     current_bgm_tone = None
     
     state = STATE_IDLE
-    button.set_led(LED_ON)  # LED on when idle, ready
+    button.set_led(LED_ON)
     logger.info(f"System started, state: {state}")
     logger.info(f"Running on {'Raspberry Pi' if IS_RASPBERRY_PI else 'Mock Hardware'}")
     
-    # Timing variables
     last_volume_check_time = time.time()
     last_battery_check_time = time.time()
     last_loop_time = time.time()
     
-    # Dynamic sleep time for main loop
-    target_loop_time = 0.02  # Target 50Hz for button responsiveness
+    target_loop_time = 0.02
     
-    # Initial volume setting
     master_volume_level = volume_ctrl.get_volume() 
     set_system_volume(master_volume_level)
     
+    # NOW initialize pygame.display and set up the window
+    pygame.init() # Initialize all pygame modules if not done by mixer
+    pygame.display.set_mode((200, 100))
+    pygame.display.set_caption("Storyteller Control")
+    pygame.mouse.set_visible(True) # Ensure mouse is visible
+
     # System booting up: show boot sequence
     led_manager.set_boot_sequence()
-    play_boot_sound()
+    play_boot_sound() # This function has its own wait, we'll address it next
     # Wait for boot sound to finish and give a slight pause
-    while pygame.mixer.get_busy(): # Wait for sound to finish
-        time.sleep(0.1)
-    time.sleep(0.5)  # Additional pause after boot sound
+    while pygame.mixer.get_busy(): 
+        pygame.event.pump() # Process events to keep window responsive
+        time.sleep(0.05) # Shorter sleep
+    time.sleep(0.2)  # Shorter additional pause
 
-    # Calculate total startup time
     total_startup_time = time.time() - start_time
     logger.info(f"Total startup time: {total_startup_time*1000:.1f}ms")
 
     try:
         while state != STATE_SHUTTING_DOWN:
-            loop_start = time.time()
+            loop_start_time_debug = time.time() # For debugging loop duration
             led_manager.update()
+
+            # --- Keyboard Input Handling ---
+            for event in pygame.event.get(): # This also pumps events
+                if event.type == pygame.QUIT:  # Window close event
+                    logger.info("Pygame window closed, initiating shutdown.")
+                    state = STATE_SHUTTING_DOWN
+                    break
+                if event.type == pygame.KEYDOWN:
+                    logger.debug(f"Key pressed: {pygame.key.name(event.key)} (code: {event.key})") # DEBUG PRINT
+                    if event.key == pygame.K_p: # Toggle Pause/Resume
+                        if state == STATE_PLAYING:
+                            pygame.mixer.music.pause()
+                            play_pause_sound()
+                            # Wait for sound to finish while pumping events
+                            sound_start_time = time.time()
+                            while pygame.mixer.get_busy() and (time.time() - sound_start_time < 2.0): # Max 2s wait
+                                pygame.event.pump()
+                                time.sleep(0.02)
+                            led_manager.set_pattern('breathing', period=2.5)
+                            state = STATE_PAUSED
+                            logger.info("Playback PAUSED (Keyboard)")
+                        elif state == STATE_PAUSED:
+                            pygame.mixer.music.unpause()
+                            play_resume_sound()
+                            sound_start_time = time.time()
+                            while pygame.mixer.get_busy() and (time.time() - sound_start_time < 2.0): # Max 2s wait
+                                pygame.event.pump()
+                                time.sleep(0.02)
+                            led_manager.set_pattern('solid', state=True)
+                            state = STATE_PLAYING
+                            logger.info("Playback RESUMED (Keyboard)")
+                    elif event.key == pygame.K_n: # New Story
+                        if current_card_uid and state in [STATE_PLAYING, STATE_PAUSED, STATE_IDLE]:
+                            logger.info("Keyboard 'n': Reselecting story for current card.")
+                            stop_bgm()
+                            pygame.mixer.stop() 
+                            led_manager.set_loading_pattern()
+                            play_transition_sound()
+                            sound_start_time = time.time()
+                            while pygame.mixer.get_busy() and (time.time() - sound_start_time < 2.0): 
+                                pygame.event.pump()
+                                time.sleep(0.02)
+                            time.sleep(0.3) # Keep this specific pause after transition
+
+                            card_data = load_card_stories(current_card_uid) 
+                            if card_data and card_data.get("stories"):
+                                stories = card_data["stories"]
+                                selected_story = select_story_for_time(stories, is_calm_time())
+                                new_narration_path = Path(__file__).parent / selected_story["audio"]
+                                new_bgm_tone = selected_story.get("tone", "calmo")
+                                if new_narration_path.exists():
+                                    logger.info(f"Playing new story (Keyboard): {selected_story['title']}")
+                                    current_narration_path = new_narration_path 
+                                    current_bgm_tone = new_bgm_tone 
+                                    play_narration_with_bgm(current_narration_path, current_bgm_tone)
+                                    # play_success_sound() # Success sound is part of play_narration_with_bgm or should be called carefully
+                                    # Ensure narration has started before trying to play success or waiting
+                                    # This part needs careful sequencing if success sound is desired here
+                                    led_manager.set_success_pattern(next_pattern='solid') # Set pattern immediately
+                                    state = STATE_PLAYING
+                                else:
+                                    logger.error(f"Audio for new story not found (Keyboard): {new_narration_path}")
+                                    led_manager.set_error_pattern(count=2)
+                                    play_error_sound()
+                                    state = STATE_IDLE 
+                            else:
+                                logger.warning("No stories for current card on 'n' key, returning to idle.")
+                                led_manager.set_pattern('solid', state=True) 
+                                play_error_sound() 
+                                state = STATE_IDLE
+                        else:
+                            logger.info("Keyboard 'n': No active card or invalid state for new story.")
+                            play_error_sound() 
+
+                    elif event.key == pygame.K_q or event.key == pygame.K_ESCAPE:
+                        logger.info("Quit key pressed, initiating shutdown.")
+                        state = STATE_SHUTTING_DOWN
+                        break
             
-            # Dynamic timing for responsive interaction
+            if state == STATE_SHUTTING_DOWN: 
+                continue
+            
             current_time = time.time()
             
-            # Volume control check (check every 200ms)
-            if current_time - last_volume_check_time > 0.2:
+            if current_time - last_volume_check_time > VOLUME_CHECK_INTERVAL: # Use constant
                 new_volume = volume_ctrl.get_volume()
-                if abs(new_volume - master_volume_level) > 0.01:
-                    set_system_volume(new_volume)
+                if abs(new_volume - master_volume_level) > 0.01: # master_volume_level is already scaled
+                    set_system_volume(new_volume) # Pass raw knob value
                 last_volume_check_time = current_time
             
-            # Battery status check (every 10 seconds)
-            if current_time - last_battery_check_time > 10:
-                handle_battery_status(adc, led_manager)
+            if IS_RASPBERRY_PI and current_time - last_battery_check_time > 10 : # Only on RPi
+                handle_battery_status(adc, led_manager) 
                 last_battery_check_time = current_time
             
-            # Button event handling
             button_event = button.get_event()
             
             if button_event == BUTTON_TAP:
                 if state == STATE_PLAYING:
                     pygame.mixer.music.pause()
                     play_pause_sound()
+                    sound_start_time = time.time()
+                    while pygame.mixer.get_busy() and (time.time() - sound_start_time < 2.0): 
+                        pygame.event.pump()
+                        time.sleep(0.02)
                     led_manager.set_pattern('breathing', period=2.5)
                     state = STATE_PAUSED
                     logger.info("Playback PAUSED")
                 elif state == STATE_PAUSED:
                     pygame.mixer.music.unpause()
                     play_resume_sound()
+                    sound_start_time = time.time()
+                    while pygame.mixer.get_busy() and (time.time() - sound_start_time < 2.0): 
+                        pygame.event.pump()
+                        time.sleep(0.02)
                     led_manager.set_pattern('solid', state=True)
                     state = STATE_PLAYING
                     logger.info("Playback RESUMED")
@@ -177,11 +272,11 @@ def main():
                     pygame.mixer.stop()
                     led_manager.set_loading_pattern()
                     play_transition_sound()
-                    # Wait for transition sound to finish and add a pause
-                    while pygame.mixer.get_busy():
-                        time.sleep(0.1)
-                    time.sleep(0.3)
-
+                    sound_start_time = time.time()
+                    while pygame.mixer.get_busy() and (time.time() - sound_start_time < 2.0):
+                        pygame.event.pump()
+                        time.sleep(0.02)
+                    time.sleep(0.3) 
                     card_data = load_card_stories(current_card_uid)
                     if card_data and card_data.get("stories"):
                         stories = card_data["stories"]
@@ -191,7 +286,7 @@ def main():
                         if current_narration_path.exists():
                             logger.info(f"Playing new story: {selected_story['title']}")
                             play_narration_with_bgm(current_narration_path, current_bgm_tone)
-                            play_success_sound()
+                            # play_success_sound() # Part of play_narration_with_bgm or needs careful sequencing
                             led_manager.set_success_pattern(next_pattern='solid')
                             state = STATE_PLAYING
                         else:
@@ -202,18 +297,22 @@ def main():
                     else:
                         logger.warning("No stories for current card on double tap, returning to idle.")
                         led_manager.set_pattern('solid', state=True)
+                        play_error_sound()
                         state = STATE_IDLE
 
             elif button_event == BUTTON_LONG_PRESS:
                 logger.info("Long press: Initiating shutdown.")
                 led_manager.set_shutdown_sequence()
                 play_shutdown_sound()
+                sound_start_time = time.time()
+                while pygame.mixer.get_busy() and (time.time() - sound_start_time < 3.0): # Longer wait for shutdown sound
+                    pygame.event.pump()
+                    time.sleep(0.02)
                 stop_bgm()
                 pygame.mixer.stop()
                 state = STATE_SHUTTING_DOWN
                 continue
 
-            # --- Card tap logic for all states ---
             uid = reader.read_uid()
             if uid and uid != current_card_uid:
                 logger.info(f"New card {uid} detected. Interrupting current story (if any) and starting new.")
@@ -222,27 +321,30 @@ def main():
                 current_card_uid = uid
                 led_manager.set_attention_pattern(count=1)
                 play_transition_sound()
-                # Wait for transition sound to finish and add a pause
-                while pygame.mixer.get_busy():
-                    time.sleep(0.1)
+                sound_start_time = time.time()
+                while pygame.mixer.get_busy() and (time.time() - sound_start_time < 2.0):
+                    pygame.event.pump()
+                    time.sleep(0.02)
                 time.sleep(0.3)
 
-                # Preload next card in background
-                if uid in ["000000", "000001", "000002", "000003", "000004"]:
-                    next_uid = f"{int(uid) + 1:06d}"
-                    threading.Thread(
-                        target=preload_narration_async, 
-                        args=(next_uid,), 
-                        daemon=True
-                    ).start()
+                if uid in ["000000", "000001", "000002", "000003", "000004"]: # Example UIDs
+                    next_uid_int = int(uid) + 1
+                    if next_uid_int <= 999999: # Ensure it doesn't exceed 6 digits
+                         next_uid = f"{next_uid_int:06d}"
+                         threading.Thread(
+                             target=preload_narration_async, 
+                             args=(next_uid,), 
+                             daemon=True
+                         ).start()
                 card_data = load_card_stories(uid)
                 if not card_data:
                     logger.error(f"Invalid or missing JSON for card {uid}")
                     led_manager.set_card_sequence(is_valid=False)
                     play_card_invalid_sound()
-                    # Wait for invalid sound to finish and add a pause
-                    while pygame.mixer.get_busy():
-                        time.sleep(0.1)
+                    sound_start_time = time.time()
+                    while pygame.mixer.get_busy() and (time.time() - sound_start_time < 2.0):
+                        pygame.event.pump()
+                        time.sleep(0.02)
                     time.sleep(0.3)
                     play_error_sound()
                     current_card_uid = None
@@ -252,9 +354,10 @@ def main():
                     logger.warning(f"Empty card: no stories for card {uid}")
                     led_manager.set_pattern('colorshift', levels=[50, 0, 50, 0], duration=0.2, count=3, next_pattern='breathing')
                     play_card_invalid_sound()
-                    # Wait for invalid sound to finish and add a pause
-                    while pygame.mixer.get_busy():
-                        time.sleep(0.1)
+                    sound_start_time = time.time()
+                    while pygame.mixer.get_busy() and (time.time() - sound_start_time < 2.0):
+                        pygame.event.pump()
+                        time.sleep(0.02)
                     time.sleep(0.3)
                     play_error_sound()
                     current_card_uid = None
@@ -269,9 +372,10 @@ def main():
                     logger.error(f"Audio file not found: {current_narration_path}")
                     led_manager.set_error_pattern(count=2)
                     play_card_invalid_sound()
-                    # Wait for invalid sound to finish and add a pause
-                    while pygame.mixer.get_busy():
-                        time.sleep(0.1)
+                    sound_start_time = time.time()
+                    while pygame.mixer.get_busy() and (time.time() - sound_start_time < 2.0):
+                        pygame.event.pump()
+                        time.sleep(0.02)
                     time.sleep(0.3)
                     play_error_sound()
                     current_card_uid = None
@@ -279,54 +383,48 @@ def main():
                     continue
                 logger.info(f"Transitioning to PLAYING state")
                 play_card_valid_sound()
-                # Wait for card valid sound to finish and add a pause
-                while pygame.mixer.get_busy():
-                    time.sleep(0.1)
+                sound_start_time = time.time()
+                while pygame.mixer.get_busy() and (time.time() - sound_start_time < 2.0):
+                    pygame.event.pump()
+                    time.sleep(0.02)
                 time.sleep(0.3)
                 play_narration_with_bgm(current_narration_path, current_bgm_tone)
                 led_manager.set_card_sequence(is_valid=True)
                 state = STATE_PLAYING
 
-            # Main state machine logic
             if state == STATE_IDLE:
                 led_manager.set_pattern('breathing', period=2.5)
-                # uid = reader.read_uid()  # Now handled above
-                # ...existing code...
             elif state == STATE_PLAYING:
-                # If music stopped and no other sound is playing, means story finished
-                if not pygame.mixer.music.get_busy() and not pygame.mixer.get_busy():
+                if not pygame.mixer.music.get_busy() and not pygame.mixer.get_busy(): # Check both music and sound channels
                     logger.info("Playback finished, returning to IDLE state.")
                     led_manager.set_pattern('fadeout', duration=1.0, next_pattern='breathing')
                     state = STATE_IDLE
-                    current_card_uid = None
+                    current_card_uid = None 
             elif state == STATE_PAUSED:
                 led_manager.set_pattern('breathing', period=2.5)
-                # uid = reader.read_uid()  # Now handled above
-                # ...existing code...
-            # Dynamic sleep calculation for consistent loop timing
-            loop_time = time.time() - loop_start
-            sleep_time = max(0.001, target_loop_time - loop_time)  # Ensure at least 1ms sleep
+            
+            loop_time = time.time() - loop_start_time_debug
+            sleep_time = max(0.001, MAIN_LOOP_INTERVAL - loop_time) # Use MAIN_LOOP_INTERVAL from config
             time.sleep(sleep_time)
             
-            # Monitor loop performance
-            if time.time() - last_loop_time > 5.0:  # Log every 5 seconds
-                avg_loop = (time.time() - last_loop_time) / (1.0 / target_loop_time * 5.0)
-                logger.debug(f"Main loop avg time: {avg_loop*1000:.2f}ms (target: {target_loop_time*1000:.1f}ms)")
+            pygame.display.flip() 
+            
+            if time.time() - last_loop_time > 5.0: 
+                # Calculate actual average loop time over the 5s period
+                num_loops_in_5_sec = 5.0 / MAIN_LOOP_INTERVAL # Expected number of loops
+                actual_avg_loop_time_ms = ((time.time() - last_loop_time) / num_loops_in_5_sec) * 1000 if num_loops_in_5_sec > 0 else 0
+                logger.debug(f"Main loop avg time over last 5s: {actual_avg_loop_time_ms:.2f}ms (target: {MAIN_LOOP_INTERVAL*1000:.1f}ms)")
                 last_loop_time = time.time()
         
-        # Shutdown sequence
         logger.info("Shutting down...")
         if IS_RASPBERRY_PI:
-            # Perform safe shutdown command
-            # os.system("sudo shutdown now") # Make sure this user has sudo rights without password for shutdown
             logger.info("[SIMULATE] os.system('sudo shutdown now')") 
         
-        # Cleanup HAL components
         if reader: reader.cleanup()
         if button: button.cleanup()
         if volume_ctrl: volume_ctrl.cleanup()
-        if IS_RASPBERRY_PI:
-            GPIO.cleanup() # Final GPIO cleanup
+        if IS_RASPBERRY_PI and 'GPIO' in locals() and GPIO: # Ensure GPIO was imported and available
+            GPIO.cleanup()
             logger.info("[HAL] GPIO.cleanup() called.")
 
         pygame.quit()
@@ -340,14 +438,14 @@ def main():
         logger.debug(f"{traceback.format_exc()}")
     finally:
         logger.info("Performing final cleanup...")
-        stop_bgm() # Ensure BGM is stopped
-        pygame.mixer.stop() # Ensure all sounds are stopped
+        stop_bgm() 
+        pygame.mixer.stop() 
 
         if reader: reader.cleanup()
         if button: button.cleanup()
         if volume_ctrl: volume_ctrl.cleanup()
         
-        if IS_RASPBERRY_PI and 'GPIO' in locals(): # Check if GPIO was successfully imported
+        if IS_RASPBERRY_PI and 'GPIO' in locals() and GPIO: 
              GPIO.cleanup()
              logger.info("[HAL] GPIO.cleanup() called in finally.")
         logger.info("Application finished.")
