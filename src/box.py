@@ -23,10 +23,10 @@ from utils.time_utils import handle_battery_status
 from adafruit_mcp3xxx.analog_in import AnalogIn
 
 if IS_RASPBERRY_PI:
-    from hardware.hal import RealUIDReader, RealButton, RealVolumeControl
+    from hardware.hal import UIDReader, Button, VolumeControl
     import RPi.GPIO as GPIO  # For cleanup
 else:
-    from hardware.hal import MockUIDReader, MockButton, MockVolumeControl
+    from hardware.hal import UIDReader, Button, VolumeControl
 
 # Import from utility modules
 from utils.audio_utils import (
@@ -86,14 +86,14 @@ def main():
             BUTTON_PIN = 23
             LED_PIN = 24
             ADC_CHANNEL_VOLUME = 0 # MCP3008 channel for volume pot
-            reader = RealUIDReader(spi_port=NFC_SPI_PORT, spi_cs_pin=NFC_SPI_CS_PIN, irq_pin=NFC_IRQ_PIN, rst_pin=NFC_RST_PIN)
-            button = RealButton(button_pin=BUTTON_PIN, led_pin=LED_PIN)
-            volume_ctrl = RealVolumeControl(adc_channel=ADC_CHANNEL_VOLUME)
+            reader = UIDReader(spi_port=NFC_SPI_PORT, spi_cs_pin=NFC_SPI_CS_PIN, irq_pin=NFC_IRQ_PIN, rst_pin=NFC_RST_PIN)
+            button = Button(button_pin=BUTTON_PIN, led_pin=LED_PIN)
+            volume_ctrl = VolumeControl(adc_channel=ADC_CHANNEL_VOLUME)
             adc = AnalogIn()  # Initialize MCP3008 ADC
         else:
-            reader = MockUIDReader()
-            button = MockButton()
-            volume_ctrl = MockVolumeControl()
+            reader = UIDReader()
+            button = Button()
+            volume_ctrl = VolumeControl()
 
         # Hardware check: if any critical component failed, signal error
         if reader is None or button is None or volume_ctrl is None:
