@@ -183,40 +183,43 @@ def main():
                 state = STATE_SHUTTING_DOWN
                 continue
 
+            # --- Card tap logic for all states ---
+            uid = reader.read_uid()
+            if uid and uid != current_card_uid:
+                logger.info(f"New card {uid} detected. Interrupting current story (if any) and starting new.")
+                stop_bgm()
+                pygame.mixer.stop()
+                current_card_uid = uid
+                card_data = load_card_stories(uid)
+                if not card_data or not card_data.get("stories"):
+                    logger.error(f"No stories for card {uid}")
+                    led_manager.set_pattern('blink', period=0.15, duty=0.5, count=5)
+                    play_error_sound()
+                    current_card_uid = None
+                    state = STATE_IDLE
+                    continue
+                current_story_data = card_data["stories"]
+                selected_story = select_story_for_time(current_story_data, is_calm_time())
+                logger.info(f"Selected story: {selected_story['title']} (tone: {selected_story['tone']})")
+                current_narration_path = Path(__file__).parent / selected_story["audio"]
+                current_bgm_tone = selected_story.get("tone", "calmo")
+                if not current_narration_path.exists():
+                    logger.error(f"Audio file not found: {current_narration_path}")
+                    led_manager.set_pattern('blink', period=0.15, duty=0.5, count=5)
+                    play_error_sound()
+                    current_card_uid = None
+                    state = STATE_IDLE
+                    continue
+                logger.info(f"Transitioning to PLAYING state")
+                play_narration_with_bgm(current_narration_path, current_bgm_tone)
+                led_manager.set_pattern('solid', state=True)
+                state = STATE_PLAYING
+
             # Main state machine logic
             if state == STATE_IDLE:
                 led_manager.set_pattern('breathing', period=2.5)
-                uid = reader.read_uid()
-                if uid:
-                    logger.info(f"Card detected: {uid}")
-                    current_card_uid = uid
-                    card_data = load_card_stories(uid)
-                    if not card_data or not card_data.get("stories"):
-                        logger.error(f"No stories for card {uid}")
-                        led_manager.set_pattern('blink', period=0.15, duty=0.5, count=5)
-                        play_error_sound()
-                        current_card_uid = None
-                        continue
-                    
-                    current_story_data = card_data["stories"]
-                    selected_story = select_story_for_time(current_story_data, is_calm_time())
-                    logger.info(f"Selected story: {selected_story['title']} (tone: {selected_story['tone']})")
-                    
-                    current_narration_path = Path(__file__).parent / selected_story["audio"]
-                    current_bgm_tone = selected_story.get("tone", "calmo")
-
-                    if not current_narration_path.exists():
-                        logger.error(f"Audio file not found: {current_narration_path}")
-                        led_manager.set_pattern('blink', period=0.15, duty=0.5, count=5)
-                        play_error_sound()
-                        current_card_uid = None
-                        continue
-                        
-                    logger.info("Transitioning to PLAYING state")
-                    play_narration_with_bgm(current_narration_path, current_bgm_tone)
-                    led_manager.set_pattern('solid', state=True)
-                    state = STATE_PLAYING
-            
+                # uid = reader.read_uid()  # Now handled above
+                # ...existing code...
             elif state == STATE_PLAYING:
                 # If music stopped and no other sound is playing, means story finished
                 if not pygame.mixer.music.get_busy() and not pygame.mixer.get_busy():
@@ -224,19 +227,10 @@ def main():
                     led_manager.set_pattern('blink', period=0.3, duty=0.5, count=3)
                     state = STATE_IDLE
                     current_card_uid = None
-            
             elif state == STATE_PAUSED:
                 led_manager.set_pattern('breathing', period=2.5)
-                uid = reader.read_uid() # Non-blocking if possible, or with short timeout
-                if uid and uid != current_card_uid: # New card placed
-                    logger.info(f"New card {uid} detected while paused. Stopping current and processing new.")
-                    stop_bgm()
-                    pygame.mixer.stop()
-                    current_card_uid = uid # Process this new card in next IDLE iteration
-                    state = STATE_IDLE # Go to IDLE to process the new card
-                    led_manager.set_pattern('breathing', period=2.5)
-                    continue # Restart loop to handle new card
-
+                # uid = reader.read_uid()  # Now handled above
+                # ...existing code...
             time.sleep(0.05) # Main loop polling interval
 
         # Shutdown sequence
