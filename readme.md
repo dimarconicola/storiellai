@@ -125,6 +125,48 @@ root/
 | VIN                   | 5V                     | Power supply                              |
 | GND                   | GND                    | Common ground                             |
 
+### Wiring Diagram (Basic ASCII Art)
+
+```
++-------------------+       +-------------------+       +-------------------+
+| Raspberry Pi      |       | PN532 NFC Reader  |       | LED Button         |
+|-------------------|       |-------------------|       |-------------------|
+| 3.3V (Pin 1)      +-------+ VCC               |       |                   |
+| GND (Pin 6)       +-------+ GND               |       +-------------------+
+| GPIO11 (Pin 23)   +-------+ SCK/SCLK          |
+| GPIO9 (Pin 21)    +-------+ MISO              |
+| GPIO10 (Pin 19)   +-------+ MOSI              |
+| GPIO8 (Pin 24)    +-------+ SS/SSEL/CS        |
+| GPIO25 (Pin 22)   +-------+ IRQ (Optional)    |
+| GPIO17 (Pin 11)   +-------+ RST (Optional)    |
++-------------------+                           |
+                                                |
++-------------------+                           |
+| MCP3008 ADC       |                           |
+|-------------------|                           |
+| CH0               +---------------------------+
+| VDD               +-------+ 3.3V (Pin 1)      |
+| VREF              +-------+ 3.3V (Pin 1)      |
+| AGND              +-------+ GND (Pin 6)       |
+| DGND              +-------+ GND (Pin 6)       |
+| CLK               +-------+ GPIO11 (Pin 23)   |
+| DOUT              +-------+ GPIO9 (Pin 21)    |
+| DIN               +-------+ GPIO10 (Pin 19)   |
+| CS                +-------+ GPIO8 (Pin 24)    |
++-------------------+                           |
+                                                |
++-------------------+                           |
+| PAM8302A Amplifier|                           |
+|-------------------|                           |
+| VIN               +-------+ 5V (Pin 2)        |
+| GND               +-------+ GND (Pin 6)       |
+| OUT+              +-------+ Speaker+          |
+| OUT-              +-------+ Speaker-          |
++-------------------+                           |
+```
+
+This diagram provides a basic overview of the connections between the Raspberry Pi, NFC reader, LED button, MCP3008 ADC, and PAM8302A amplifier. For more detailed diagrams, consider using tools like Fritzing or Tinkercad.
+
 ### Enclosure Design
 
 The enclosure can be 3D-printed or custom-made to house all components securely. Ensure the following:
