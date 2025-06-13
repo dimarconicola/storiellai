@@ -318,3 +318,123 @@ def play_error_sound():
             logger.error(f"Failed to play error sound: {e}")
     else:
         logger.error("Error sound file missing: error.mp3")
+
+def play_card_valid_sound():
+    """Play a sound for valid card recognition."""
+    path = AUDIO_FOLDER / "card_valid.mp3"
+    if path.exists():
+        try:
+            sound = pygame.mixer.Sound(str(path))
+            sound.set_volume(1.0)
+            sound.play()
+            logger.info("Played card valid sound.")
+            pygame.time.wait(400)
+        except Exception as e:
+            logger.error(f"Failed to play card valid sound: {e}")
+    else:
+        logger.warning("Card valid sound file missing: card_valid.mp3")
+
+def play_card_invalid_sound():
+    """Play a sound for invalid card recognition."""
+    path = AUDIO_FOLDER / "card_invalid.mp3"
+    if path.exists():
+        try:
+            sound = pygame.mixer.Sound(str(path))
+            sound.set_volume(1.0)
+            sound.play()
+            logger.info("Played card invalid sound.")
+            pygame.time.wait(400)
+        except Exception as e:
+            logger.error(f"Failed to play card invalid sound: {e}")
+    else:
+        logger.warning("Card invalid sound file missing: card_invalid.mp3")
+
+def play_transition_sound():
+    """Play a short transition sound between stories."""
+    path = AUDIO_FOLDER / "transition.mp3"
+    if path.exists():
+        try:
+            sound = pygame.mixer.Sound(str(path))
+            sound.set_volume(1.0)
+            sound.play()
+            logger.info("Played transition sound.")
+            pygame.time.wait(350)
+        except Exception as e:
+            logger.error(f"Failed to play transition sound: {e}")
+    else:
+        logger.warning("Transition sound file missing: transition.mp3")
+
+def play_boot_sound():
+    """Play a sound at system boot."""
+    path = AUDIO_FOLDER / "boot.mp3"
+    if path.exists():
+        try:
+            sound = pygame.mixer.Sound(str(path))
+            sound.set_volume(1.0)
+            sound.play()
+            logger.info("Played boot sound.")
+            pygame.time.wait(600)
+        except Exception as e:
+            logger.error(f"Failed to play boot sound: {e}")
+    else:
+        logger.warning("Boot sound file missing: boot.mp3")
+
+def play_shutdown_sound():
+    """Play a sound at system shutdown."""
+    path = AUDIO_FOLDER / "shutdown.mp3"
+    if path.exists():
+        try:
+            sound = pygame.mixer.Sound(str(path))
+            sound.set_volume(1.0)
+            sound.play()
+            logger.info("Played shutdown sound.")
+            pygame.time.wait(600)
+        except Exception as e:
+            logger.error(f"Failed to play shutdown sound: {e}")
+    else:
+        logger.warning("Shutdown sound file missing: shutdown.mp3")
+
+def play_pause_sound():
+    """Play a sound when pausing playback."""
+    path = AUDIO_FOLDER / "pause.mp3"
+    if path.exists():
+        try:
+            sound = pygame.mixer.Sound(str(path))
+            sound.set_volume(1.0)
+            sound.play()
+            logger.info("Played pause sound.")
+            pygame.time.wait(350)
+        except Exception as e:
+            logger.error(f"Failed to play pause sound: {e}")
+    else:
+        logger.warning("Pause sound file missing: pause.mp3")
+
+def play_resume_sound():
+    """Play a sound when resuming playback."""
+    path = AUDIO_FOLDER / "resume.mp3"
+    if path.exists():
+        try:
+            sound = pygame.mixer.Sound(str(path))
+            sound.set_volume(1.0)
+            sound.play()
+            logger.info("Played resume sound.")
+            pygame.time.wait(350)
+        except Exception as e:
+            logger.error(f"Failed to play resume sound: {e}")
+    else:
+        logger.warning("Resume sound file missing: resume.mp3")
+
+def play_success_sound():
+    """Play a sound for successful operations."""
+    path = AUDIO_FOLDER / "success.mp3"
+    if path.exists():
+        try:
+            sound = pygame.mixer.Sound(str(path))
+            sound.set_volume(1.0)
+            sound.play()
+            logger.info("Played success sound.")
+            pygame.time.wait(400)
+        except Exception as e:
+            logger.error(f"Failed to play success sound: {e}")
+    else:
+        logger.warning("Success sound file missing: success.mp3")
