@@ -20,6 +20,8 @@ from utils.bgm_utils import (
     BGM_INTRO_VOLUME, BGM_NARRATION_VOLUME, BGM_OUTRO_VOLUME
 )
 import json
+import logging
+import math
 
 # ============ CONSTANTS ============
 AUDIO_FOLDER = Path(__file__).parent / "audio"
@@ -397,6 +399,88 @@ def test_audio_performance():
     else:
         print("[WARNING] Cannot test Sound performance, no files found")
 
+# ============ LED PATTERN MANAGER ============
+class LedPatternManager:
+    """
+    Manages LED patterns (solid, blink, breathing, off) using the button's LED control methods.
+    Call update() frequently from the main loop.
+    """
+    def __init__(self, button):
+        self.button = button
+        self.pattern = 'solid'  # solid, off, blink, breathing
+        self.last_update = time.monotonic()
+        self.blink_on = False
+        self.blink_period = 1.0
+        self.blink_duty = 0.5
+        self.breathing_period = 2.5
+        self.solid_state = True
+        self._last_breath = 0
+        self._blink_count = 0
+        self._blink_target = None
+        self._blink_callback = None
+
+    def set_pattern(self, pattern, **kwargs):
+        self.pattern = pattern
+        if pattern == 'solid':
+            self.solid_state = kwargs.get('state', True)
+            self.button.set_led(self.solid_state)
+            self.button.stop_led_pwm()
+        elif pattern == 'off':
+            self.button.set_led(False)
+            self.button.stop_led_pwm()
+        elif pattern == 'blink':
+            self.blink_period = kwargs.get('period', 0.5)
+            self.blink_duty = kwargs.get('duty', 0.5)
+            self._blink_count = 0
+            self._blink_target = kwargs.get('count', None)
+            self._blink_callback = kwargs.get('callback', None)
+            self.last_update = time.monotonic()
+            self.blink_on = False
+            self.button.set_led(False)
+            self.button.stop_led_pwm()
+        elif pattern == 'breathing':
+            self.breathing_period = kwargs.get('period', 2.5)
+            self.button.start_led_pwm(0)
+            self._last_breath = time.monotonic()
+        else:
+            self.button.set_led(False)
+            self.button.stop_led_pwm()
+
+    def update(self):
+        now = time.monotonic()
+        if self.pattern == 'solid':
+            self.button.set_led(self.solid_state)
+        elif self.pattern == 'off':
+            self.button.set_led(False)
+        elif self.pattern == 'blink':
+            elapsed = now - self.last_update
+            period = self.blink_period
+            duty = self.blink_duty
+            on_time = period * duty
+            if self.blink_on:
+                if elapsed >= on_time:
+                    self.button.set_led(False)
+                    self.blink_on = False
+                    self.last_update = now
+                    if self._blink_target is not None:
+                        self._blink_count += 1
+                        if self._blink_count >= self._blink_target:
+                            if self._blink_callback:
+                                self._blink_callback()
+                            self.set_pattern('solid', state=True)
+            else:
+                if elapsed >= (period - on_time):
+                    self.button.set_led(True)
+                    self.blink_on = True
+                    self.last_update = now
+        elif self.pattern == 'breathing':
+            t = (now - self._last_breath) % self.breathing_period
+            # Breathing: duty cycle varies sinusoidally between 10% and 100%
+            duty = 10 + 90 * 0.5 * (1 - math.cos(2 * math.pi * t / self.breathing_period))
+            self.button.change_led_pwm_duty_cycle(duty)
+        else:
+            self.button.set_led(False)
+
 # ============ MAIN APPLICATION ============
 def main():
     """Main application loop"""
@@ -452,8 +536,11 @@ def main():
         master_volume_level = volume_ctrl.get_volume() 
         set_system_volume(master_volume_level)
 
+        led_manager = LedPatternManager(button)
+        led_manager.set_pattern('breathing', period=2.5) # Start with breathing for idle
 
         while state != STATE_SHUTTING_DOWN:
+            led_manager.update()
             # Volume control check (periodically)
             if time.monotonic() - last_volume_check_time > 0.2: # Check 5 times a second
                 new_volume = volume_ctrl.get_volume()
@@ -471,14 +558,12 @@ def main():
             if button_event == BUTTON_TAP:
                 if state == STATE_PLAYING:
                     pygame.mixer.music.pause()
-                    # pygame.mixer.pause() # Pauses all sound channels
-                    button.set_led(LED_OFF) # Or a pulsing LED for PAUSED
+                    led_manager.set_pattern('breathing', period=2.5)
                     state = STATE_PAUSED
                     print("[INFO] Playback PAUSED")
                 elif state == STATE_PAUSED:
                     pygame.mixer.music.unpause()
-                    # pygame.mixer.unpause()
-                    button.set_led(LED_ON)
+                    led_manager.set_pattern('solid', state=True)
                     state = STATE_PLAYING
                     print("[INFO] Playback RESUMED")
                 # Optional: if idle and tapped, replay last story? For now, no action.
@@ -486,59 +571,48 @@ def main():
             elif button_event == BUTTON_DOUBLE_TAP:
                 if current_card_uid and state in [STATE_PLAYING, STATE_PAUSED, STATE_IDLE]:
                     print("[INFO] Double tap: Reselecting story for current card.")
-                    if pygame.mixer.music.get_busy() or pygame.mixer.get_busy(): # if something is playing/paused
-                        stop_bgm() # Stop current playback fully
-                        # Ensure all sound channels are stopped too if narration was separate
-                        pygame.mixer.stop()
-
-
-                    # Force re-selection and play from IDLE-like state for this card
-                    # This simulates as if the card was just placed again for a new story
-                    card_data = load_card_stories(current_card_uid) # Reload data
+                    stop_bgm()
+                    pygame.mixer.stop()
+                    card_data = load_card_stories(current_card_uid)
                     if card_data and card_data.get("stories"):
                         stories = card_data["stories"]
                         selected_story = select_story_for_time(stories, is_calm_time())
                         current_narration_path = Path(__file__).parent / selected_story["audio"]
                         current_bgm_tone = selected_story.get("tone", "calmo")
-                        
                         if current_narration_path.exists():
                             print(f"[INFO] Playing new story: {selected_story['title']}")
                             play_narration_with_bgm(current_narration_path, current_bgm_tone)
-                            button.set_led(LED_ON)
+                            led_manager.set_pattern('solid', state=True)
                             state = STATE_PLAYING
                         else:
                             print(f"[ERROR] Audio for new story not found: {current_narration_path}")
-                            button.set_led(LED_ON) # Back to ready state
+                            led_manager.set_pattern('solid', state=True)
                             state = STATE_IDLE
                     else:
                         print("[WARN] No stories for current card on double tap, returning to idle.")
-                        button.set_led(LED_ON)
+                        led_manager.set_pattern('solid', state=True)
                         state = STATE_IDLE
-
 
             elif button_event == BUTTON_LONG_PRESS:
                 print("[INFO] Long press: Initiating shutdown.")
-                button.set_led(LED_OFF) # LED off during shutdown
+                led_manager.set_pattern('blink', period=0.2, duty=0.5, count=10)
                 stop_bgm()
                 pygame.mixer.stop()
-                # Add any other cleanup here
                 state = STATE_SHUTTING_DOWN
-                continue # Skip to end of while loop for shutdown sequence
+                continue
 
             # Main state machine logic
             if state == STATE_IDLE:
-                button.set_led(LED_ON) # Ready indicator
+                led_manager.set_pattern('breathing', period=2.5)
                 # print("[DEBUG] Waiting for card...") # Too noisy
                 uid = reader.read_uid()
                 if uid:
                     print(f"[INFO] Card detected: {uid}")
                     current_card_uid = uid
-                    # preload_narration(uid) # Optional: preload if not done globally or if memory is an issue
-                    
                     card_data = load_card_stories(uid)
                     if not card_data or not card_data.get("stories"):
                         print(f"[ERROR] No stories for card {uid}")
-                        current_card_uid = None # Reset if card is invalid
+                        current_card_uid = None
                         continue
                     
                     current_story_data = card_data["stories"]
@@ -550,23 +624,24 @@ def main():
 
                     if not current_narration_path.exists():
                         print(f"[ERROR] Audio file not found: {current_narration_path}")
-                        current_card_uid = None # Reset
+                        current_card_uid = None
                         continue
                         
                     print(f"[INFO] Transitioning to PLAYING state")
                     play_narration_with_bgm(current_narration_path, current_bgm_tone)
-                    button.set_led(LED_ON) # LED solid while playing
+                    led_manager.set_pattern('solid', state=True)
                     state = STATE_PLAYING
             
             elif state == STATE_PLAYING:
                 # If music stopped and no other sound is playing, means story finished
                 if not pygame.mixer.music.get_busy() and not pygame.mixer.get_busy():
                     print("[INFO] Playback finished, returning to IDLE state.")
-                    button.set_led(LED_ON) # Ready indicator
+                    led_manager.set_pattern('blink', period=0.3, duty=0.5, count=3)
                     state = STATE_IDLE
-                    current_card_uid = None # Ready for a new card entirely
+                    current_card_uid = None
             
             elif state == STATE_PAUSED:
+                led_manager.set_pattern('breathing', period=2.5)
                 # Handled by button events or new card scan
                 # Check for new card while paused
                 uid = reader.read_uid() # Non-blocking if possible, or with short timeout
@@ -576,7 +651,7 @@ def main():
                     pygame.mixer.stop()
                     current_card_uid = uid # Process this new card in next IDLE iteration
                     state = STATE_IDLE # Go to IDLE to process the new card
-                    button.set_led(LED_ON)
+                    led_manager.set_pattern('breathing', period=2.5)
                     continue # Restart loop to handle new card
 
             time.sleep(0.05) # Main loop polling interval
