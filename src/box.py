@@ -16,6 +16,7 @@ import traceback
 from pathlib import Path
 import pygame
 import sys  # For GPIO cleanup on exit
+from utils.log_utils import logger
 
 from hardware.hal import IS_RASPBERRY_PI, BUTTON_NO_EVENT, BUTTON_TAP, BUTTON_DOUBLE_TAP, BUTTON_LONG_PRESS
 from utils.time_utils import handle_battery_status
@@ -55,7 +56,7 @@ def main():
     """
     global master_volume_level
     if not initialize_audio_engine():
-        print("[CRITICAL] Failed to initialize audio. Exiting.")
+        logger.critical("Failed to initialize audio. Exiting.")
         if button:
             led_manager = LedPatternManager(button)
             led_manager.set_pattern('blink', period=0.15, duty=0.5)
@@ -96,7 +97,7 @@ def main():
 
         # Hardware check: if any critical component failed, signal error
         if reader is None or button is None or volume_ctrl is None:
-            print("[CRITICAL] Hardware initialization failed.")
+            logger.critical("Hardware initialization failed.")
             if button:
                 led_manager = LedPatternManager(button)
                 led_manager.set_pattern('blink', period=0.1, duty=0.5)
@@ -105,8 +106,8 @@ def main():
 
         state = STATE_IDLE
         button.set_led(LED_ON) # LED on when idle, ready
-        print(f"[INFO] System started, state: {state}")
-        print(f"[INFO] Running on {'Raspberry Pi' if IS_RASPBERRY_PI else 'Mock Hardware'}")
+        logger.info(f"System started, state: {state}")
+        logger.info(f"Running on {'Raspberry Pi' if IS_RASPBERRY_PI else 'Mock Hardware'}")
 
         last_volume_check_time = time.monotonic()
         last_battery_check_time = time.monotonic()
@@ -141,16 +142,16 @@ def main():
                     pygame.mixer.music.pause()
                     led_manager.set_pattern('breathing', period=2.5)
                     state = STATE_PAUSED
-                    print("[INFO] Playback PAUSED")
+                    logger.info("Playback PAUSED")
                 elif state == STATE_PAUSED:
                     pygame.mixer.music.unpause()
                     led_manager.set_pattern('solid', state=True)
                     state = STATE_PLAYING
-                    print("[INFO] Playback RESUMED")
+                    logger.info("Playback RESUMED")
 
             elif button_event == BUTTON_DOUBLE_TAP:
                 if current_card_uid and state in [STATE_PLAYING, STATE_PAUSED, STATE_IDLE]:
-                    print("[INFO] Double tap: Reselecting story for current card.")
+                    logger.info("Double tap: Reselecting story for current card.")
                     stop_bgm()
                     pygame.mixer.stop()
                     card_data = load_card_stories(current_card_uid)
@@ -160,22 +161,22 @@ def main():
                         current_narration_path = Path(__file__).parent / selected_story["audio"]
                         current_bgm_tone = selected_story.get("tone", "calmo")
                         if current_narration_path.exists():
-                            print(f"[INFO] Playing new story: {selected_story['title']}")
+                            logger.info(f"Playing new story: {selected_story['title']}")
                             play_narration_with_bgm(current_narration_path, current_bgm_tone)
                             led_manager.set_pattern('solid', state=True)
                             state = STATE_PLAYING
                         else:
-                            print(f"[ERROR] Audio for new story not found: {current_narration_path}")
+                            logger.error(f"Audio for new story not found: {current_narration_path}")
                             led_manager.set_pattern('blink', period=0.15, duty=0.5, count=5)
                             play_error_sound()
                             state = STATE_IDLE
                     else:
-                        print("[WARN] No stories for current card on double tap, returning to idle.")
+                        logger.warning("No stories for current card on double tap, returning to idle.")
                         led_manager.set_pattern('solid', state=True)
                         state = STATE_IDLE
 
             elif button_event == BUTTON_LONG_PRESS:
-                print("[INFO] Long press: Initiating shutdown.")
+                logger.info("Long press: Initiating shutdown.")
                 led_manager.set_pattern('blink', period=0.2, duty=0.5, count=10)
                 stop_bgm()
                 pygame.mixer.stop()
@@ -187,11 +188,11 @@ def main():
                 led_manager.set_pattern('breathing', period=2.5)
                 uid = reader.read_uid()
                 if uid:
-                    print(f"[INFO] Card detected: {uid}")
+                    logger.info(f"Card detected: {uid}")
                     current_card_uid = uid
                     card_data = load_card_stories(uid)
                     if not card_data or not card_data.get("stories"):
-                        print(f"[ERROR] No stories for card {uid}")
+                        logger.error(f"No stories for card {uid}")
                         led_manager.set_pattern('blink', period=0.15, duty=0.5, count=5)
                         play_error_sound()
                         current_card_uid = None
@@ -199,19 +200,19 @@ def main():
                     
                     current_story_data = card_data["stories"]
                     selected_story = select_story_for_time(current_story_data, is_calm_time())
-                    print(f"[INFO] Selected story: {selected_story['title']} (tone: {selected_story['tone']})")
+                    logger.info(f"Selected story: {selected_story['title']} (tone: {selected_story['tone']})")
                     
                     current_narration_path = Path(__file__).parent / selected_story["audio"]
                     current_bgm_tone = selected_story.get("tone", "calmo")
 
                     if not current_narration_path.exists():
-                        print(f"[ERROR] Audio file not found: {current_narration_path}")
+                        logger.error(f"Audio file not found: {current_narration_path}")
                         led_manager.set_pattern('blink', period=0.15, duty=0.5, count=5)
                         play_error_sound()
                         current_card_uid = None
                         continue
                         
-                    print(f"[INFO] Transitioning to PLAYING state")
+                    logger.info("Transitioning to PLAYING state")
                     play_narration_with_bgm(current_narration_path, current_bgm_tone)
                     led_manager.set_pattern('solid', state=True)
                     state = STATE_PLAYING
@@ -219,7 +220,7 @@ def main():
             elif state == STATE_PLAYING:
                 # If music stopped and no other sound is playing, means story finished
                 if not pygame.mixer.music.get_busy() and not pygame.mixer.get_busy():
-                    print("[INFO] Playback finished, returning to IDLE state.")
+                    logger.info("Playback finished, returning to IDLE state.")
                     led_manager.set_pattern('blink', period=0.3, duty=0.5, count=3)
                     state = STATE_IDLE
                     current_card_uid = None
@@ -228,7 +229,7 @@ def main():
                 led_manager.set_pattern('breathing', period=2.5)
                 uid = reader.read_uid() # Non-blocking if possible, or with short timeout
                 if uid and uid != current_card_uid: # New card placed
-                    print(f"[INFO] New card {uid} detected while paused. Stopping current and processing new.")
+                    logger.info(f"New card {uid} detected while paused. Stopping current and processing new.")
                     stop_bgm()
                     pygame.mixer.stop()
                     current_card_uid = uid # Process this new card in next IDLE iteration
@@ -239,11 +240,11 @@ def main():
             time.sleep(0.05) # Main loop polling interval
 
         # Shutdown sequence
-        print("[INFO] Shutting down...")
+        logger.info("Shutting down...")
         if IS_RASPBERRY_PI:
             # Perform safe shutdown command
             # os.system("sudo shutdown now") # Make sure this user has sudo rights without password for shutdown
-            print("[SIMULATE] os.system('sudo shutdown now')") 
+            logger.info("[SIMULATE] os.system('sudo shutdown now')") 
         
         # Cleanup HAL components
         if reader: reader.cleanup()
@@ -251,19 +252,19 @@ def main():
         if volume_ctrl: volume_ctrl.cleanup()
         if IS_RASPBERRY_PI:
             GPIO.cleanup() # Final GPIO cleanup
-            print("[HAL] GPIO.cleanup() called.")
+            logger.info("[HAL] GPIO.cleanup() called.")
 
         pygame.quit()
-        print("[INFO] Pygame quit. Exiting application.")
+        logger.info("Pygame quit. Exiting application.")
         sys.exit(0)
 
     except KeyboardInterrupt:
-        print("[INFO] Manual interruption: exiting program.")
+        logger.info("Manual interruption: exiting program.")
     except Exception as e:
-        print(f"[ERROR] Unexpected error in main loop: {e}")
-        print(f"[DEBUG] {traceback.format_exc()}")
+        logger.error(f"Unexpected error in main loop: {e}")
+        logger.debug(f"{traceback.format_exc()}")
     finally:
-        print("[INFO] Performing final cleanup...")
+        logger.info("Performing final cleanup...")
         stop_bgm() # Ensure BGM is stopped
         pygame.mixer.stop() # Ensure all sounds are stopped
 
@@ -273,13 +274,12 @@ def main():
         
         if IS_RASPBERRY_PI and 'GPIO' in locals(): # Check if GPIO was successfully imported
              GPIO.cleanup()
-             print("[HAL] GPIO.cleanup() called in finally.")
-        pygame.quit()
-        print("[INFO] Application finished.")
+             logger.info("[HAL] GPIO.cleanup() called in finally.")
+        logger.info("Application finished.")
 
 def run_with_verification():
     """Run the application with initial verification"""
-    print("[INFO] Starting Storellai-1 with verification checks")
+    logger.info("Starting Storellai-1 with verification checks")
     verify_audio_files()
     # Remove or comment out the test playback step:
     # test_audio_performance()

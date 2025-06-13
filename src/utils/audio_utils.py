@@ -9,6 +9,7 @@ import traceback
 from pathlib import Path
 from typing import Optional, Dict, Any
 import json
+import logging
 
 from config.app_config import (
     AUDIO_FREQUENCY, AUDIO_BUFFER, AUDIO_CHANNELS, MAX_AUDIO_CHANNELS,
@@ -18,6 +19,7 @@ from utils.bgm_utils import (
     fade_bgm_to, stop_bgm,
     BGM_INTRO_VOLUME, BGM_NARRATION_VOLUME, BGM_OUTRO_VOLUME
 )
+from utils.log_utils import logger
 
 # Audio cache to reduce loading times
 BGM_CACHE: Dict[str, pygame.mixer.Sound] = {}
@@ -41,11 +43,11 @@ def initialize_audio_engine():
             buffer=AUDIO_BUFFER
         )
         pygame.mixer.set_num_channels(MAX_AUDIO_CHANNELS)
-        print("[INFO] Audio engine initialized successfully")
+        logger.info("Audio engine initialized successfully")
         return True
     except Exception as e:
-        print(f"[ERROR] Failed to initialize audio engine: {e}")
-        print(f"[DEBUG] {traceback.format_exc()}")
+        logger.error(f"Failed to initialize audio engine: {e}")
+        logger.debug(f"{traceback.format_exc()}")
         return False
 
 
@@ -63,12 +65,12 @@ def set_system_volume(level, current_bgm_volume_factor=1.0):
     # Store the master volume for use by narration
     master_volume_level = effective_volume
     
-    print(f"[AUDIO] System volume set to {effective_volume:.2f} (raw knob: {level:.2f})")
+    logger.info(f"System volume set to {effective_volume:.2f} (raw knob: {level:.2f})")
 
 
 def preload_bgm():
     """Preload background music into memory"""
-    print("[DEBUG] Starting BGM preload...")
+    logger.debug("Starting BGM preload...")
     bgm_loaded = 0
     
     for tone in ["calmo", "avventuroso", "divertente", "misterioso", "tenero"]:
@@ -77,21 +79,21 @@ def preload_bgm():
             try:
                 BGM_CACHE[tone] = pygame.mixer.Sound(str(bgm_path))
                 bgm_loaded += 1
-                print(f"[INFO] Preloaded BGM: {tone}")
+                logger.info(f"Preloaded BGM: {tone}")
             except Exception as e:
-                print(f"[ERROR] Failed to preload BGM {tone}: {e}")
+                logger.error(f"Failed to preload BGM {tone}: {e}")
     
-    print(f"[INFO] Preloaded {bgm_loaded}/5 BGM files")
+    logger.info(f"Preloaded {bgm_loaded}/5 BGM files")
 
 
 def preload_narration(uid):
     """Preload narration files for a specific card"""
     from utils.data_utils import load_card_stories
     
-    print(f"[DEBUG] Preloading narration for card {uid}...")
+    logger.debug(f"Preloading narration for card {uid}...")
     card_data = load_card_stories(uid)
     if not card_data or not card_data.get("stories"):
-        print(f"[WARNING] No stories found for card {uid}, skipping narration preload")
+        logger.warning(f"No stories found for card {uid}, skipping narration preload")
         return
     
     stories_loaded = 0
@@ -104,58 +106,58 @@ def preload_narration(uid):
                 key = f"{uid}_{story['id']}"
                 NARRATION_CACHE[key] = pygame.mixer.Sound(str(narration_path))
                 stories_loaded += 1
-                print(f"[INFO] Preloaded narration: {story['title']}")
+                logger.info(f"Preloaded narration: {story['title']}")
             except Exception as e:
                 stories_failed += 1
-                print(f"[ERROR] Failed to preload narration {story['title']}: {e}")
+                logger.error(f"Failed to preload narration {story['title']}: {e}")
     
-    print(f"[INFO] Preloaded {stories_loaded} narrations ({stories_failed} failed)")
+    logger.info(f"Preloaded {stories_loaded} narrations ({stories_failed} failed)")
 
 
 def crossfade_bgm_to_narration(bgm_path, narration_path, tone):
     """Play BGM with narration using crossfade technique"""
     global master_volume_level
-    print(f"[DEBUG] Starting crossfade playback: {tone} with master_volume: {master_volume_level:.2f}")
+    logger.debug(f"Starting crossfade playback: {tone} with master_volume: {master_volume_level:.2f}")
     
     try:
         pygame.mixer.music.load(str(bgm_path))
         # BGM_INTRO_VOLUME is a factor (e.g. 1.0), scale by master_volume_level
         pygame.mixer.music.set_volume(BGM_INTRO_VOLUME * master_volume_level)
         pygame.mixer.music.play(-1)
-        print(f"[DEBUG] BGM started at volume {BGM_INTRO_VOLUME * master_volume_level:.2f}")
+        logger.debug(f"BGM started at volume {BGM_INTRO_VOLUME * master_volume_level:.2f}")
     except Exception as e:
-        print(f"[ERROR] Failed to play BGM: {e}")
+        logger.error(f"Failed to play BGM: {e}")
         return
     
     time.sleep(1.5)
     try:
         narration = pygame.mixer.Sound(str(narration_path))
         narration.set_volume(master_volume_level)  # Set narration volume based on master
-        print(f"[DEBUG] Narration loaded: {narration_path.name}, volume: {master_volume_level:.2f}")
+        logger.debug(f"Narration loaded: {narration_path.name}, volume: {master_volume_level:.2f}")
     except Exception as e:
-        print(f"[ERROR] Failed to load narration: {e}")
+        logger.error(f"Failed to load narration: {e}")
         stop_bgm()
         return
     
     # Fade BGM to its narration level, scaled by master_volume
     fade_bgm_to(BGM_NARRATION_VOLUME * master_volume_level, duration=1.0)
-    print(f"[DEBUG] BGM faded to {BGM_NARRATION_VOLUME * master_volume_level:.2f} for narration")
+    logger.debug(f"BGM faded to {BGM_NARRATION_VOLUME * master_volume_level:.2f} for narration")
     time.sleep(0.3)
     
     try:
         narration_channel = narration.play()
-        print("[INFO] Narration started")
+        logger.info("Narration started")
         
         # Wait for narration to finish
         while narration_channel and narration_channel.get_busy():
             time.sleep(0.1)
-        print("[INFO] Narration finished")
+        logger.info("Narration finished")
     except Exception as e:
-        print(f"[ERROR] Narration playback error: {e}")
+        logger.error(f"Narration playback error: {e}")
     
     # Raise BGM, scaled by master_volume
     fade_bgm_to(BGM_INTRO_VOLUME * 0.8 * master_volume_level, duration=1.5)
-    print(f"[DEBUG] BGM raised after narration to {BGM_INTRO_VOLUME * 0.8 * master_volume_level:.2f}")
+    logger.debug(f"BGM raised after narration to {BGM_INTRO_VOLUME * 0.8 * master_volume_level:.2f}")
     
     # Let BGM play for a short outro period
     time.sleep(2.0)
@@ -164,7 +166,7 @@ def crossfade_bgm_to_narration(bgm_path, narration_path, tone):
     fade_bgm_to(0.0, duration=1.5)
     time.sleep(1.5)
     stop_bgm()
-    print("[DEBUG] Playback completed")
+    logger.debug("Playback completed")
 
 
 def play_narration_with_bgm(narration_path, tone):
@@ -177,7 +179,7 @@ def play_narration_with_bgm(narration_path, tone):
     """
     bgm_path = BGM_FOLDER / f"{tone}_loop.mp3"
     if not bgm_path.exists():
-        print(f"[ERROR] BGM not found for tone '{tone}': {bgm_path}")
+        logger.error(f"BGM not found for tone '{tone}': {bgm_path}")
         return False
     
     crossfade_bgm_to_narration(bgm_path, narration_path, tone)
@@ -186,7 +188,7 @@ def play_narration_with_bgm(narration_path, tone):
 
 def test_audio_performance():
     """Test audio engine performance"""
-    print("[INFO] Testing audio performance...")
+    logger.info("Testing audio performance...")
     
     if not pygame.mixer.get_init():
         initialize_audio_engine()
@@ -204,9 +206,9 @@ def test_audio_performance():
         pygame.mixer.music.stop()
         play_time = time.time() - start_time
         
-        print(f"[INFO] BGM load time: {load_time:.4f}s, play startup: {play_time:.4f}s")
+        logger.info(f"BGM load time: {load_time:.4f}s, play startup: {play_time:.4f}s")
     else:
-        print("[WARNING] Cannot test BGM performance, file not found")
+        logger.warning("Cannot test BGM performance, file not found")
     
     # Test Sound object performance
     test_paths = []
@@ -227,9 +229,9 @@ def test_audio_performance():
         channel.stop()
         play_time = time.time() - start_time
         
-        print(f"[INFO] Sound load time: {load_time:.4f}s, play startup: {play_time:.4f}s")
+        logger.info(f"Sound load time: {load_time:.4f}s, play startup: {play_time:.4f}s")
     else:
-        print("[WARNING] Cannot test Sound performance, no files found")
+        logger.warning("Cannot test Sound performance, no files found")
 
 def play_error_sound():
     """Play a default error sound if available."""
@@ -239,10 +241,10 @@ def play_error_sound():
             sound = pygame.mixer.Sound(str(error_path))
             sound.set_volume(1.0)
             sound.play()
-            print("[AUDIO] Played error sound.")
+            logger.info("Played error sound.")
             # Wait briefly to let the error sound play
             pygame.time.wait(700)
         except Exception as e:
-            print(f"[AUDIO] Failed to play error sound: {e}")
+            logger.error(f"Failed to play error sound: {e}")
     else:
-        print("[AUDIO] Error sound file missing: error.mp3")
+        logger.error("Error sound file missing: error.mp3")
