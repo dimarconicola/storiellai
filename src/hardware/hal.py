@@ -1,3 +1,14 @@
+# hal.py
+"""
+Hardware Abstraction Layer for Storyteller Box.
+Provides both real (Raspberry Pi) and mock classes for:
+- UID (NFC) reader
+- Button with LED (tap, double-tap, long-press detection, PWM LED)
+- Volume control via MCP3008 ADC
+
+Allows seamless switching between real hardware and mock/testing environments.
+"""
+
 import time
 import random
 # Attempt to import Raspberry Pi specific libraries
@@ -22,6 +33,10 @@ BUTTON_DOUBLE_TAP = 2
 BUTTON_LONG_PRESS = 3
 
 class MockUIDReader:
+    """
+    Mock NFC UID reader for development/testing without hardware.
+    Simulates 10 unique UIDs, cycles through them on each read.
+    """
     def __init__(self):
         # 10 unique UIDs
         self.uids = [f"{i:06d}" for i in range(10)]
@@ -39,6 +54,10 @@ class MockUIDReader:
         print("[HAL_Mock] MockUIDReader cleanup.")
 
 class MockButton:
+    """
+    Mock button with LED for development/testing.
+    Simulates button events and LED state, including PWM for breathing/blink effects.
+    """
     def __init__(self, button_pin=None, led_pin=None, long_press_duration=1.5, double_tap_window=0.3):
         print(f"[HAL_Mock] Initialized MockButton (Pin: {button_pin}, LED: {led_pin})")
         self._led_state = False
@@ -93,6 +112,10 @@ class MockButton:
         print("[HAL_Mock] MockButton cleanup.")
 
 class MockVolumeControl:
+    """
+    Mock volume control for development/testing.
+    Simulates a volume knob (returns a fixed or changing value).
+    """
     def __init__(self, adc_channel=None, spi_port=None, spi_cs=None):
         print(f"[HAL_Mock] Initialized MockVolumeControl (ADC Channel: {adc_channel})")
         self._volume = 0.75 # Default mock volume
@@ -112,6 +135,9 @@ if IS_RASPBERRY_PI:
     # GPIO.setwarnings(False) # Disable warnings if they are noisy
 
     class RealUIDReader:
+        """
+        Real NFC UID reader (skeleton, to be implemented for actual hardware).
+        """
         def __init__(self, spi_port=0, spi_cs_pin=0, irq_pin=None, rst_pin=None):
             # Example using a generic PN532 library structure
             # self.pn532 = PN532_SPI(cs=spi_cs_pin, irq=irq_pin, reset=rst_pin) # spi_port might be implicit
@@ -144,6 +170,11 @@ if IS_RASPBERRY_PI:
             pass
 
     class RealButton:
+        """
+        Real button with LED for Raspberry Pi.
+        - Handles tap, double-tap, long-press detection with debouncing
+        - Supports PWM for breathing/blink LED patterns
+        """
         def __init__(self, button_pin, led_pin=None, long_press_duration=1.5, double_tap_window=0.3, debounce_time=0.05):
             self.button_pin = button_pin
             self.led_pin = led_pin
@@ -653,6 +684,9 @@ if IS_RASPBERRY_PI:
             pass # GPIO.cleanup() should be called once globally if at all for long running scripts
 
     class RealVolumeControl:
+        """
+        Real volume control using MCP3008 ADC (skeleton, to be implemented for actual hardware).
+        """
         def __init__(self, adc_channel=0, spi_port=0, spi_cs=0, spi_clk=None, spi_miso=None, spi_mosi=None):
             # For MCP3008, you'd typically use a library like Adafruit_MCP3008
             # Example:

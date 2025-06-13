@@ -1,3 +1,14 @@
+"""
+Main application logic for the Storyteller Box (Offline Edition).
+Handles NFC card reading, story selection, audio playback, button events, volume control, and LED feedback patterns.
+
+- NFC cards trigger story playback (pre-recorded audio, offline only)
+- Button supports tap (pause/play), double-tap (new story), long-press (shutdown)
+- Volume knob via MCP3008 ADC
+- LED feedback (solid, breathing, blink) via PWM
+- Hardware abstraction via hal.py for easy testing/mocking
+"""
+
 import os
 import random
 import time
@@ -402,8 +413,8 @@ def test_audio_performance():
 # ============ LED PATTERN MANAGER ============
 class LedPatternManager:
     """
-    Manages LED patterns (solid, blink, breathing, off) using the button's LED control methods.
-    Call update() frequently from the main loop.
+    Manages LED feedback patterns (solid, blink, breathing) for the button LED.
+    Call update() frequently from the main loop to keep the pattern smooth.
     """
     def __init__(self, button):
         self.button = button
@@ -483,7 +494,13 @@ class LedPatternManager:
 
 # ============ MAIN APPLICATION ============
 def main():
-    """Main application loop"""
+    """
+    Main application loop.
+    - Initializes hardware abstraction (real or mock)
+    - Handles state machine for NFC, audio, button, and LED
+    - Integrates volume knob and error handling
+    - Cleans up on exit
+    """
     global master_volume_level
     if not initialize_audio_engine():
         print("[CRITICAL] Failed to initialize audio. Exiting.")

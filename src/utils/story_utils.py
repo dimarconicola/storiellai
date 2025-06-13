@@ -1,3 +1,8 @@
+"""
+Story selection utilities for Storyteller Box.
+Provides logic to pick a story from a list, optionally filtered by tone or other criteria.
+"""
+
 import json
 import random
 from pathlib import Path
