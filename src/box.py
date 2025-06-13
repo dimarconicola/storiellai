@@ -40,7 +40,8 @@ from utils.bgm_utils import stop_bgm
 # Import configuration
 from config.app_config import (
     STATE_IDLE, STATE_PLAYING, STATE_PAUSED, STATE_SHUTTING_DOWN,
-    LED_OFF, LED_ON, VOLUME_CHECK_INTERVAL, MAIN_LOOP_INTERVAL # Added VOLUME_CHECK_INTERVAL and MAIN_LOOP_INTERVAL
+    LED_OFF, LED_ON, VOLUME_CHECK_INTERVAL, MAIN_LOOP_INTERVAL,
+    IDLE_SHUTDOWN_TIMEOUT_MINUTES # Added IDLE_SHUTDOWN_TIMEOUT_MINUTES
 )
 
 # Hardware components
@@ -112,6 +113,8 @@ def main():
     current_bgm_tone = None
     
     state = STATE_IDLE
+    last_activity_time = time.time() # Initialize last activity time for idle shutdown
+    last_story_played_time = time.time() # Initialize time for idle shutdown
     button.set_led(LED_ON)
     logger.info(f"System started, state: {state}")
     logger.info(f"Running on {'Raspberry Pi' if IS_RASPBERRY_PI else 'Mock Hardware'}")
@@ -316,6 +319,8 @@ def main():
             uid = reader.read_uid()
             if uid and uid != current_card_uid:
                 logger.info(f"New card {uid} detected. Interrupting current story (if any) and starting new.")
+                last_activity_time = time.time() # Reset activity timer on new card
+                last_story_played_time = time.time() # Reset story played timer
                 stop_bgm()
                 pygame.mixer.stop()
                 current_card_uid = uid
@@ -391,9 +396,25 @@ def main():
                 play_narration_with_bgm(current_narration_path, current_bgm_tone)
                 led_manager.set_card_sequence(is_valid=True)
                 state = STATE_PLAYING
+                last_story_played_time = time.time() # Update when a new story starts
 
             if state == STATE_IDLE:
                 led_manager.set_pattern('breathing', period=2.5)
+                # Check for idle timeout based on no new story played
+                if IDLE_SHUTDOWN_TIMEOUT_MINUTES > 0: # Only if timeout is set
+                    if (time.time() - last_story_played_time) > (IDLE_SHUTDOWN_TIMEOUT_MINUTES * 60):
+                        logger.info(f"No new story played for {IDLE_SHUTDOWN_TIMEOUT_MINUTES} minutes. Initiating shutdown.")
+                        led_manager.set_shutdown_sequence()
+                        play_shutdown_sound()
+                        sound_start_time = time.time()
+                        while pygame.mixer.get_busy() and (time.time() - sound_start_time < 3.0):
+                            pygame.event.pump()
+                            time.sleep(0.02)
+                        stop_bgm()
+                        pygame.mixer.stop()
+                        state = STATE_SHUTTING_DOWN
+                        continue # Skip to next loop iteration to process shutdown
+
             elif state == STATE_PLAYING:
                 if not pygame.mixer.music.get_busy() and not pygame.mixer.get_busy(): # Check both music and sound channels
                     logger.info("Playback finished, returning to IDLE state.")
@@ -402,6 +423,12 @@ def main():
                     current_card_uid = None 
             elif state == STATE_PAUSED:
                 led_manager.set_pattern('breathing', period=2.5)
+                # Paused state does not reset last_story_played_time, so it will eventually shut down
+                # if no new story is initiated.
+                # If you want pause to keep it alive indefinitely (or reset the timer), 
+                # you would update last_story_played_time here.
+                # For now, the behavior is: if paused for longer than IDLE_SHUTDOWN_TIMEOUT_MINUTES 
+                # without a new story being played, it will shut down. This seems reasonable.
             
             loop_time = time.time() - loop_start_time_debug
             sleep_time = max(0.001, MAIN_LOOP_INTERVAL - loop_time) # Use MAIN_LOOP_INTERVAL from config

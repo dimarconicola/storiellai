@@ -45,8 +45,14 @@ ADC_CHANNEL_VOLUME = 0  # MCP3008 channel for volume pot
 # ============ TIMING SETTINGS ============
 CALM_TIME_START = (20, 30)  # 20:30
 CALM_TIME_END = (6, 30)     # 6:30
-VOLUME_CHECK_INTERVAL = 0.2  # Check volume 5 times per second
-MAIN_LOOP_INTERVAL = 0.05    # Main loop polling interval
+# Interval for checking volume changes (in seconds)
+VOLUME_CHECK_INTERVAL = 1
+
+# Main loop update interval (in milliseconds)
+MAIN_LOOP_INTERVAL = 100
+
+# Idle shutdown timeout (in minutes)
+IDLE_SHUTDOWN_TIMEOUT_MINUTES = 30  # Auto-shutdown after X minutes of inactivity (no new story played)
 
 # ============ AUDIO TONE MAPPINGS ============
 AVAILABLE_TONES = ["calmo", "avventuroso", "divertente", "misterioso", "tenero"]
