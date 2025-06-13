@@ -26,12 +26,13 @@ description: A fully offline, NFC-triggered storytelling device for kids.
 
 ## Overview
 
-Storyteller Box is a small bedside companion that **tells pre-recorded Italian fairy tales** triggered by NFC cards. Children place an NFC-tagged card on the lid, and the box plays a corresponding story with matching background music. The device is **fully offline**, with all narration and music pre-loaded onto an SD card.
+Storyteller Box is a small bedside companion that **tells pre-recorded fairy tales** triggered by NFC cards. Children place an NFC-tagged card on the lid, and the box plays a corresponding story with matching background music. The device is **fully offline**, with all narration and music pre-loaded onto an SD card.
 
 -   **No internet required:** All stories and background music are pre-recorded and stored locally.
 -   **Simple controls:** A single illuminated button handles play, pause, and shutdown.
 -   **Calm time logic:** Automatically selects calm stories during bedtime hours.
 -   **Parent-friendly:** Easily add new stories and music by copying files to the SD card.
+-   **Language Agnostic:** While this version includes Italian stories, you can use stories in any language as long as they are in MP3 format.
 
 ---
 
@@ -68,7 +69,8 @@ root/
 ├── models/                   # Pre-trained models (e.g., TinyLlama)
 ├── audio/                    # Audio files (narration, BGM)
 ├── requirements.txt          # Python dependencies
-└── readme.md                 # Project documentation
+├── readme.md                 # Project documentation
+└── systemd/                  # Systemd service files for auto-start
 ```
 
 ---
@@ -85,7 +87,7 @@ root/
 | LED Button            | Illuminated momentary push button                | 2-4              |                                                                       |
 | Rotary Potentiometer  | 10k Ohm Linear Potentiometer                     | 1-3              | For volume control                                                    |
 | MCP3008 ADC           | 8-Channel 10-Bit ADC with SPI Interface        | 2-4              | To read analog value from potentiometer                             |
-| Power Supply          | 5V, 2.5A Micro USB power supply                  | 5-10             |                                                                       |
+| Powerbank Battery     | Portable battery pack for powering the device    | 10-20            |                                                                       |
 | Jumper Wires          | Assorted male/female                             | 2-5              |                                                                       |
 | NFC Cards/Tags        | NTAG215 or similar (compatible with PN532)       | 0.50-1 per card  |                                                                       |
 | Enclosure             | 3D printed or custom-made box                    | 5-20             | Material cost if 3D printing                                          |
@@ -262,6 +264,9 @@ The offline version relies on pre-recorded audio files and JSON configurations.
 
 4.  **Write UID to NFC Card:**
     *   Use an NFC writing tool (e.g., "NFC Tools" app on a smartphone) to write the plain text UID (e.g., "000000") to an NFC card. This UID must match the `card_<UID>.json` filename.
+
+5.  **Using storellai-audiobook Script:**
+    *   To add new stories, you can use the [storellai-audiobook](https://github.com/dimarconicola/storellai-audiobook) script. This script uses Google APIs to generate audio files from a provided story JSON file and places them in the correct folder. Ensure you have the JSON file ready before running the script.
 
 ---
 
