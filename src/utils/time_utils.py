@@ -80,13 +80,72 @@ def read_battery_voltage():
 
 
 # Function to handle battery management
-def handle_battery_status():
-    """Check battery status and handle low/critical levels."""
-    voltage = read_battery_voltage()
-
+def handle_battery_status(adc, led_manager=None):
+    """
+    Check battery status and handle low/critical levels with LED feedback.
+    
+    Args:
+        adc: The ADC instance for reading battery voltage
+        led_manager: Optional LedPatternManager to show battery status
+    
+    Returns:
+        tuple: (voltage, percentage, status)
+            voltage: Current battery voltage
+            percentage: Battery level as percentage (0-100)
+            status: String indicating status ('normal', 'low', 'critical')
+    """
+    # If no ADC provided or on mock hardware, simulate values
+    if adc is None:
+        # In simulation mode, alternate between normal and low battery
+        import random
+        voltage = random.choice([3.5, 3.3, 3.2])
+    else:
+        try:
+            voltage = read_battery_voltage()
+        except Exception as e:
+            from utils.log_utils import logger
+            logger.error(f"Failed to read battery voltage: {e}")
+            voltage = 3.8  # Default to a safe value on error
+    
+    # Calculate battery percentage (approximate)
+    # LiPo battery is ~3.7V nominal, ~4.2V full, ~3.0V empty
+    percentage = max(0, min(100, (voltage - 3.0) / (4.2 - 3.0) * 100))
+    
+    status = 'normal'
     if voltage <= CRITICAL_BATTERY_THRESHOLD:
-        print("[WARNING] Critical battery level! Initiating safe shutdown...")
+        status = 'critical'
+        from utils.log_utils import logger
+        logger.warning(f"Critical battery level ({voltage:.2f}V, {percentage:.0f}%)! Initiating shutdown...")
+        
+        # Show critical battery warning if LED manager available
+        if led_manager:
+            led_manager.set_pattern('sos', count=1, next_pattern='error')
+            
+        # Safe shutdown procedure
         stop_bgm()
-        os.system("sudo shutdown now")
+        import pygame
+        pygame.mixer.stop()
+        
+        # Delay before shutdown to allow warning to be seen
+        time.sleep(2)
+        
+        if os.path.exists("/usr/bin/sudo"):
+            # Safe shutdown on Raspberry Pi
+            os.system("sudo shutdown now")
+        else:
+            # On development platforms, just log
+            logger.info("[SIMULATE] sudo shutdown now")
+            
     elif voltage <= LOW_BATTERY_THRESHOLD:
-        print("[WARNING] Low battery level! Please recharge soon.")
+        status = 'low'
+        from utils.log_utils import logger
+        logger.warning(f"Low battery level ({voltage:.2f}V, {percentage:.0f}%)! Please recharge soon.")
+        
+        # Show low battery warning if LED manager available
+        if led_manager:
+            current_pattern = led_manager.pattern
+            # Only show warning if not already showing an error pattern
+            if current_pattern not in ['error', 'sos', 'attention']:
+                led_manager.set_battery_warning(int(percentage))
+    
+    return voltage, percentage, status

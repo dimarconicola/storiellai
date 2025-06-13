@@ -119,10 +119,9 @@ def main():
     master_volume_level = volume_ctrl.get_volume() 
     set_system_volume(master_volume_level)
     
-    # System booting up: fast breathing pattern
-    led_manager.set_pattern('breathing', period=1.0)  # Fast breathing for boot
-    time.sleep(1.0)  # Show boot pattern (reduced from 1.5s)
-    led_manager.set_pattern('breathing', period=2.5)  # Normal breathing for idle/ready
+    # System booting up: show boot sequence
+    led_manager.set_boot_sequence()
+    time.sleep(1.0)  # Allow boot sequence to start
     
     # Calculate total startup time
     total_startup_time = time.time() - start_time
@@ -168,6 +167,10 @@ def main():
                     logger.info("Double tap: Reselecting story for current card.")
                     stop_bgm()
                     pygame.mixer.stop()
+                    
+                    # Show loading pattern while selecting a new story
+                    led_manager.set_loading_pattern()
+                    
                     card_data = load_card_stories(current_card_uid)
                     if card_data and card_data.get("stories"):
                         stories = card_data["stories"]
@@ -177,11 +180,11 @@ def main():
                         if current_narration_path.exists():
                             logger.info(f"Playing new story: {selected_story['title']}")
                             play_narration_with_bgm(current_narration_path, current_bgm_tone)
-                            led_manager.set_pattern('solid', state=True)
+                            led_manager.set_success_pattern(next_pattern='solid')
                             state = STATE_PLAYING
                         else:
                             logger.error(f"Audio for new story not found: {current_narration_path}")
-                            led_manager.set_pattern('blink', period=0.15, duty=0.5, count=5)
+                            led_manager.set_error_pattern(count=2)
                             play_error_sound()
                             state = STATE_IDLE
                     else:
@@ -191,7 +194,7 @@ def main():
 
             elif button_event == BUTTON_LONG_PRESS:
                 logger.info("Long press: Initiating shutdown.")
-                led_manager.set_pattern('blink', period=0.2, duty=0.5, count=10)
+                led_manager.set_shutdown_sequence()
                 stop_bgm()
                 pygame.mixer.stop()
                 state = STATE_SHUTTING_DOWN
@@ -204,6 +207,9 @@ def main():
                 stop_bgm()
                 pygame.mixer.stop()
                 current_card_uid = uid
+                
+                # Show loading pattern while processing card
+                led_manager.set_attention_pattern(count=1)
                 
                 # Preload next card in background
                 if uid in ["000000", "000001", "000002", "000003", "000004"]:
@@ -218,14 +224,14 @@ def main():
                 card_data = load_card_stories(uid)
                 if not card_data:
                     logger.error(f"Invalid or missing JSON for card {uid}")
-                    led_manager.set_pattern('blink', period=0.1, duty=0.5, count=8)  # Fast blink for invalid card
+                    led_manager.set_card_sequence(is_valid=False)
                     play_error_sound()
                     current_card_uid = None
                     state = STATE_IDLE
                     continue
                 if not card_data.get("stories"):
                     logger.warning(f"Empty card: no stories for card {uid}")
-                    led_manager.set_pattern('blink', period=0.5, duty=0.1, count=3)  # 3 slow blinks for empty card
+                    led_manager.set_pattern('colorshift', levels=[50, 0, 50, 0], duration=0.2, count=3, next_pattern='breathing')
                     play_error_sound()
                     current_card_uid = None
                     state = STATE_IDLE
@@ -237,14 +243,14 @@ def main():
                 current_bgm_tone = selected_story.get("tone", "calmo")
                 if not current_narration_path.exists():
                     logger.error(f"Audio file not found: {current_narration_path}")
-                    led_manager.set_pattern('blink', period=0.15, duty=0.5, count=5)
+                    led_manager.set_error_pattern(count=2)
                     play_error_sound()
                     current_card_uid = None
                     state = STATE_IDLE
                     continue
                 logger.info(f"Transitioning to PLAYING state")
                 play_narration_with_bgm(current_narration_path, current_bgm_tone)
-                led_manager.set_pattern('solid', state=True)
+                led_manager.set_card_sequence(is_valid=True)
                 state = STATE_PLAYING
 
             # Main state machine logic
@@ -256,7 +262,7 @@ def main():
                 # If music stopped and no other sound is playing, means story finished
                 if not pygame.mixer.music.get_busy() and not pygame.mixer.get_busy():
                     logger.info("Playback finished, returning to IDLE state.")
-                    led_manager.set_pattern('blink', period=0.3, duty=0.5, count=3)
+                    led_manager.set_pattern('fadeout', duration=1.0, next_pattern='breathing')
                     state = STATE_IDLE
                     current_card_uid = None
             elif state == STATE_PAUSED:
@@ -377,7 +383,7 @@ def handle_error(led_manager, error_type="general", message=None):
     
     Args:
         led_manager: LedPatternManager instance
-        error_type: Type of error ("card", "audio", "system")
+        error_type: Type of error ("card", "audio", "system", "network", "battery")
         message: Optional error message to log
     """
     if message:
@@ -388,22 +394,27 @@ def handle_error(led_manager, error_type="general", message=None):
     
     # Different LED patterns for different error types
     if error_type == "card":
-        # Card read error - 3 quick blinks
-        led_manager.set_pattern('blink', period=0.1, duty=0.5, count=3)
+        # Card read error - pulsing red pattern
+        led_manager.set_pattern('colorshift', levels=[100, 0, 100, 0], duration=0.2, count=3, next_pattern='breathing')
     elif error_type == "audio":
-        # Audio error - Fast pulsing
-        led_manager.set_pattern('blink', period=0.1, duty=0.3, count=5)
+        # Audio error - error pattern
+        led_manager.set_error_pattern(count=2)
     elif error_type == "system":
-        # System error - SOS pattern (3 short, 3 long, 3 short)
-        # This is a more complex pattern to implement
-        led_manager.set_pattern('blink', period=0.2, duty=0.5, count=10)
+        # System error - SOS pattern
+        led_manager.set_sos(count=1, next_pattern='breathing')
+    elif error_type == "network":
+        # Network connectivity error - slow pulse
+        led_manager.set_pattern('pulse', count=3, next_pattern='breathing')
+    elif error_type == "battery":
+        # Battery error - custom pattern based on severity
+        level = message if isinstance(message, int) else 15
+        led_manager.set_battery_warning(level)
     else:
-        # General error - 5 quick blinks
-        led_manager.set_pattern('blink', period=0.15, duty=0.5, count=5)
+        # General error - attention pattern
+        led_manager.set_attention_pattern(count=2, next_pattern='breathing')
     
-    # Return to breathing pattern after error indication
-    time.sleep(1.0)
-    led_manager.set_pattern('breathing', period=2.5)
+    # Wait for pattern to start
+    time.sleep(0.2)
 
 if __name__ == "__main__":
     # Skip verification during normal operation for faster startup
