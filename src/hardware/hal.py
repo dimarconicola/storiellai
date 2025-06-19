@@ -40,6 +40,9 @@ class UIDReader:
         pass
     def read_uid(self):
         return "MOCK_UID"
+    def cleanup(self):
+        # Mock method: do nothing
+        pass
 
 # Mock Button class
 class Button:
@@ -50,6 +53,8 @@ class Button:
     def set_led(self, value):
         pass
     def stop_led_pwm(self):
+        pass
+    def start_led_pwm(self, *args, **kwargs):
         # Mock method: do nothing
         pass
 
