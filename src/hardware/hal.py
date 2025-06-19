@@ -47,6 +47,9 @@ class Button:
         pass
     def get_event(self):
         return BUTTON_NO_EVENT
+    def set_led(self, value):
+        # Mock method: do nothing
+        pass
 
 # Mock VolumeControl class
 class VolumeControl:
