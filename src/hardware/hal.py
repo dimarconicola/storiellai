@@ -59,5 +59,6 @@ class VolumeControl:
         return self.level
     def set_level(self, value):
         self.level = value
-
-# Add other mock classes or logic as needed for your application
+    def get_volume(self):
+        # Mock method: return current level
+        return self.level
