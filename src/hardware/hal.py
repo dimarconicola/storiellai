@@ -34,4 +34,27 @@ class AnalogIn:
         self.value = 0
         self.voltage = 0.0
 
+# Mock UIDReader class
+class UIDReader:
+    def __init__(self, *args, **kwargs):
+        pass
+    def read_uid(self):
+        return "MOCK_UID"
+
+# Mock Button class
+class Button:
+    def __init__(self, *args, **kwargs):
+        pass
+    def get_event(self):
+        return BUTTON_NO_EVENT
+
+# Mock VolumeControl class
+class VolumeControl:
+    def __init__(self, *args, **kwargs):
+        self.level = 0.5
+    def get_level(self):
+        return self.level
+    def set_level(self, value):
+        self.level = value
+
 # Add other mock classes or logic as needed for your application
