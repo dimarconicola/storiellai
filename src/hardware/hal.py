@@ -41,7 +41,9 @@ class UIDReader:
     def read_uid(self):
         if not self._called:
             self._called = True
+            print('[DEBUG] UIDReader returning MOCK_UID')
             return "MOCK_UID"
+        print('[DEBUG] UIDReader returning None')
         return None
     def cleanup(self):
         pass
@@ -59,7 +61,8 @@ class Button:
     def start_led_pwm(self, *args, **kwargs):
         pass
     def change_led_pwm_duty_cycle(self, *args, **kwargs):
-        # Mock method: do nothing
+        pass
+    def cleanup(self):
         pass
 
 # Mock VolumeControl class
