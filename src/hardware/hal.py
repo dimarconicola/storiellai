@@ -37,11 +37,13 @@ class AnalogIn:
 # Mock UIDReader class
 class UIDReader:
     def __init__(self, *args, **kwargs):
-        pass
+        self._called = False
     def read_uid(self):
-        return "MOCK_UID"
+        if not self._called:
+            self._called = True
+            return "MOCK_UID"
+        return None
     def cleanup(self):
-        # Mock method: do nothing
         pass
 
 # Mock Button class
