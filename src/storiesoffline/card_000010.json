@@ -1,0 +1,31 @@
+{
+    "id": "000010",
+    "character": "Popò, una cacca curiosa e un po' birichina, che ha imparato a parlare e sogna di vivere avventure incredibili.",
+    "location": "La colorata e rumorosa città di Palermo, in Sicilia. Avventure a scuola.",
+    "stories": [
+        {
+            "id": 1,
+            "title": "Popò e il Mistero del Cannolo Scomparso",
+            "tone": "calmo",
+            "length_words": 184,
+            "audio": "audio/000010/1.mp3",
+            "text": "Scoppiò una risata generale nella classe quando il signor Salvo, l'insegnante di scuola materna, si accorse che il suo cannolo siciliano, dolce preferito da tutti, era sparito. Proprio in quel momento, nascosto dietro un libro di fiabe, Popò, la cacca parlante, si mise a riflettere su questo mistero.\n\n\"Chi avrebbe osato rubare il cannolo del signor Salvo?\" pensò Popò, con un'espressione pensierosa. Come un piccolo detective, iniziò a cercare indizi. Si arrampicò sui banchi, strisció sotto la lavagna e, dopo un po', trovò una scia di briciole di cannolo che conduceva dritta al borsone di Gino, il bullo della classe.\n\nCon un sorriso malizioso, Popò decise di rendere il cannolo al suo legittimo proprietario in modo piuttosto... odoroso. Quando il signor Salvo aprì il borsone di Gino, trovò il suo amato cannolo avvolto in un foglio di carta igienica... puzzolente!\n\nDa quel giorno, nessuno osò mai più rubare il cannolo del signor Salvo e Popò divenne l'eroe inaspettato della classe, dimostrando che anche una cacca può risolvere un grande mistero. E così, in quel caldo pomeriggio a Palermo, Popò sognò la sua prossima avventura."
+        },
+        {
+            "id": 2,
+            "title": "La Rivoluzione dei Gelati a Palermo",
+            "tone": "avventuroso",
+            "length_words": 105,
+            "audio": "audio/000010/2.mp3",
+            "text": "Popò, la cacca parlante, stava scorrazzando per le stradine di Palermo, quando qualcosa di strano catturò la sua attenzione. Riuscite a indovinare cosa era? Una gelateria! Ma non una gelateria qualunque...\n\nCapite perché? In quella gelateria, i gusti dei gelati stavano cambiando tutto da soli! Immaginate un po': vaniglia che diventa cioccolato, fragola che si trasforma in menta...una vera rivoluzione dei gelati! \n\nPopò, curioso com'è, decise di indagare. Ma come fa una cacca a risolvere un mistero del genere? E cosa scoprirà?\n\nCon un sorriso birichino, Popò si preparò all'avventura. E voi, siete pronti a scoprire insieme a lui la Rivoluzione dei Gelati a Palermo?"
+        },
+        {
+            "id": 3,
+            "title": "L'enigma della Fontana Pretoria",
+            "tone": "divertente",
+            "length_words": 124,
+            "audio": "audio/000010/3.mp3",
+            "text": "Palermo brulicava di vita, con i suoi colori vivaci e suoni stridenti. In questa città vibrante, viveva Popò, una cacca piccola e birichina, con un grande sogno nel cuore: risolvere l'enigma della Fontana Pretoria.\n\nLa leggenda narrava di un tesoro nascosto, e Popò, con le sue faccette scintillanti, era più che pronto a scovarlo. \"Sento le voci dell'acqua che chiacchierano tra loro,\" pensò, mentre entrava cauto nella fontana. I suoi occhietti luccicavano di eccitazione.\n\nSaltellando da un leone scolpito all'altro, dopo innumerevoli indovinelli e risate, Popò scoprì finalmente una perla nascosta tra le rocce. \"Ecco il tesoro!\" esclamò, trionfante. \"E che avventura divertente è stata!\" \n\nE così, Popò, la cacca curiosa, sorrise sotto il sole siciliano, felice di aver risolto l'enigma della Fontana Pretoria."
+        }
+    ]
+}
