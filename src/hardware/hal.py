@@ -76,3 +76,6 @@ class VolumeControl:
     def get_volume(self):
         # Mock method: return current level
         return self.level
+    def cleanup(self):
+        # Mock method: do nothing
+        pass
