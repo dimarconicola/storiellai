@@ -23,4 +23,15 @@ class MCP3008_HAL_Real_Provider:
             cls._mcp_chip_instance = object()  # Replace with actual mock logic if needed
         return cls._mcp_chip_instance
 
+# Mock MCP3008 class
+class MCP3008:
+    def __init__(self, *args, **kwargs):
+        pass
+
+# Mock AnalogIn class
+class AnalogIn:
+    def __init__(self, mcp, pin):
+        self.value = 0
+        self.voltage = 0.0
+
 # Add other mock classes or logic as needed for your application
