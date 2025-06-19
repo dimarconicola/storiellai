@@ -48,6 +48,8 @@ class Button:
     def get_event(self):
         return BUTTON_NO_EVENT
     def set_led(self, value):
+        pass
+    def stop_led_pwm(self):
         # Mock method: do nothing
         pass
 
