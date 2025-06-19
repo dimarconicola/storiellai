@@ -322,6 +322,7 @@ def main():
                 continue
 
             uid = reader.read_uid()
+            logger.debug(f"UIDReader returned: {uid}")
             if uid and uid != current_card_uid:
                 logger.info(f"New card {uid} detected. Interrupting current story (if any) and starting new.")
                 last_activity_time = time.time() # Reset activity timer on new card
