@@ -55,6 +55,8 @@ class Button:
     def stop_led_pwm(self):
         pass
     def start_led_pwm(self, *args, **kwargs):
+        pass
+    def change_led_pwm_duty_cycle(self, *args, **kwargs):
         # Mock method: do nothing
         pass
 
