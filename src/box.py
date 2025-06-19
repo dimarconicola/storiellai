@@ -528,14 +528,14 @@ def background_preload():
     try:
         background_loading_active = True
         logger.info("Starting background preloading...")
-        
         # Preload common card data
         preload_card_data()
-        
-        # Preload narration for first few cards (adjust number as needed)
-        for uid in ["000000", "000001", "000002"]:
-            preload_narration_async(uid)
-            
+        # Only preload narrations if running on real hardware
+        if IS_RASPBERRY_PI:
+            # Preload narration for first card only (minimize memory use)
+            preload_narration_async("000000")
+        else:
+            logger.info("Skipping narration preloading in mock mode.")
         logger.info("Background preloading completed")
     except Exception as e:
         logger.error(f"Background preloading error: {e}")
