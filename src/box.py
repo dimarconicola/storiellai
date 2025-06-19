@@ -22,7 +22,12 @@ from utils.log_utils import logger
 
 from hardware.hal import IS_RASPBERRY_PI, BUTTON_NO_EVENT, BUTTON_TAP, BUTTON_DOUBLE_TAP, BUTTON_LONG_PRESS
 from utils.time_utils import handle_battery_status
-from adafruit_mcp3xxx.analog_in import AnalogIn
+
+# Try to import AnalogIn from adafruit_mcp3xxx, fallback to hardware.hal
+try:
+    from adafruit_mcp3xxx.analog_in import AnalogIn
+except ImportError:
+    from hardware.hal import AnalogIn  # Use the mock if the real one is missing
 
 # Import from utility modules
 from utils.audio_utils import (
