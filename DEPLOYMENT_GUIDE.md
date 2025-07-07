@@ -1,31 +1,6 @@
 # Storyteller Box Deployment Guide: Creating a Master Image
 
-Thi8.  **Set Up Auto-Start Service:**
-    *   Copy the provided systemd service file to the system directory:
-        ```bash
-        sudo cp systemd/storyteller.service /etc/systemd/system/
-        ```
-    *   Reload the systemd daemon:
-        ```bash
-        sudo systemctl daemon-reload
-        ```
-    *   Enable the service to start on boot:
-        ```bash
-        sudo systemctl enable storyteller.service
-        ```
-9.  **Test Logging Setup:**
-    *   The system uses structured logging with rotation
-    *   Check that logging is configured correctly:
-        ```bash
-        # Run the application manually
-        cd /home/pi/storiellai/src
-        python3 box.py
-        
-        # Stop with Ctrl+C after a moment and check logs
-        cat storyteller.log
-        ```
-    *   Ensure log rotation works and error logs are captured
-10. **Thoroughly Test:**es the process for creating a master Raspberry Pi OS image for the Storyteller Box. This allows for quick and easy replication of the software setup onto multiple Raspberry Pi units, ideal for creating gifts or multiple instances of the device.
+This guide describes the process for creating a master Raspberry Pi OS image for the Storyteller Box. This allows for quick and easy replication of the software setup onto multiple Raspberry Pi units, ideal for creating gifts or multiple instances of the device.
 
 ## Overview
 
@@ -50,64 +25,85 @@ The core idea is to set up one Raspberry Pi perfectly (the "master" Pi), then cr
         sudo systemctl start ssh
         ```
         (Or use `sudo raspi-config` -> `Interface Options` -> `SSH` -> `Enable`). This allows remote access from your main computer.
-    *   **Enable SPI:**
-        Use `sudo raspi-config`:
-        Navigate to `Interface Options` -> `SPI` -> `Enable`.
-    *   **Update System:**
-        ```bash
-        sudo apt update
-        sudo apt upgrade -y
-        ```
-4.  **Install Project Dependencies:**
-    *   Install Git:
-        ```bash
-        sudo apt install git -y
-        ```
-    *   Install Python 3 pip and other system dependencies:
-        ```bash
-        sudo apt install python3-pip python3-pygame libasound2-dev python3-dev libgpiod2 -y
-        ```
-5.  **Clone Your Application:**
-    *   Navigate to the desired directory:
-        ```bash
-        cd /home/pi/
-        git clone https://github.com/dimarconicola/storiellai.git
-        cd storiellai
-        ```
-6.  **Install Python Requirements:**
-    *   Install Python packages:
-        ```bash
-        pip3 install -r requirements.txt
-        ```
-7.  **Hardware Configuration:**
-    *   If using the battery monitoring feature:
-        *   Connect a voltage divider to the power source and to MCP3008 Channel 1 (or as configured in `time_utils.py`)
-        *   The voltage divider should reduce the 5V input to a safe level for the ADC (≤3.3V)
-        *   Adjust `LOW_BATTERY_THRESHOLD` and `CRITICAL_BATTERY_THRESHOLD` in `src/utils/time_utils.py` if needed
-    *   If using custom LED patterns:
-        *   The system uses the `LedPatternManager` in `src/utils/led_utils.py` for visual feedback
-        *   You can customize patterns for different states (boot, ready, error, etc.)
-8.  **Set Up Auto-Start Service:**
-    *   Copy your systemd service file to the system directory:
-        ```bash
-        sudo cp systemd/storyteller.service /etc/systemd/system/
-        ```
-    *   Reload the systemd daemon:
-        ```bash
-        sudo systemctl daemon-reload
-        ```
-    *   Enable the service to start on boot:
-        ```bash
-        sudo systemctl enable storyteller.service
-        ```
-8.  **Thoroughly Test:**
+4.  **Fast Setup (Copy-Paste Method):**
+    Use the commands from the Quick Start Guide in the README:
+    ```bash
+    # Update system packages
+    sudo apt update && sudo apt upgrade -y
+
+    # Install essential system packages
+    sudo apt install -y git python3-pip python3-pygame libasound2-dev python3-dev libgpiod2
+
+    # Enable SPI interface (required for NFC reader and ADC)
+    sudo raspi-config nonint do_spi 0
+
+    # Clone the project
+    cd /home/pi
+    git clone https://github.com/dimarconicola/storiellai.git
+    cd storiellai
+
+    # Install Python dependencies
+    pip3 install -r requirements.txt --break-system-packages
+
+    # Set to real hardware mode for final deployment
+    cd src/hardware
+    sed -i 's/IS_RASPBERRY_PI = False/IS_RASPBERRY_PI = True/' hal.py
+    ```
+
+5.  **Test the Installation:**
+    ```bash
+    # Test in mock mode first (safe)
+    cd /home/pi/storiellai/src/hardware
+    sed -i 's/IS_RASPBERRY_PI = True/IS_RASPBERRY_PI = False/' hal.py
+    cd ../
+    python3 box.py
+    # Should show mock hardware messages. Press Ctrl+C to stop.
+    
+    # Switch back to real hardware mode
+    cd hardware
+    sed -i 's/IS_RASPBERRY_PI = False/IS_RASPBERRY_PI = True/' hal.py
+    ```
+
+6.  **Set Up Auto-Start Service:**
+    ```bash
+    cd /home/pi/storiellai
+    sudo cp systemd/storyteller.service /etc/systemd/system/
+    sudo systemctl daemon-reload
+    sudo systemctl enable storyteller.service
+    ```
+    **Note:** Don't start the service yet (`sudo systemctl start`) - leave it enabled but stopped for the master image.
+
+7.  **Test Logging Setup:**
+    ```bash
+    # Test logging configuration
+    cd /home/pi/storiellai/src
+    timeout 10 python3 box.py  # Run for 10 seconds then auto-stop
+    cat storyteller.log  # Should show recent log entries
+    ```
+
+8.  **Clean Up for Master Image:**
+    ```bash
+    # Clear logs and temporary files
+    cd /home/pi/storiellai/src
+    rm -f storyteller.log storyteller_error.log
+    
+    # Clear bash history
+    history -c
+    history -w
+    
+    # Clear any cached Python files
+    find /home/pi/storiellai -name "*.pyc" -delete
+    find /home/pi/storiellai -name "__pycache__" -type d -exec rm -rf {} +
+    ```
+
+**Phase 2: Prepare the Master Pi for Imaging**
+
+1.  **Thoroughly Test:**
     *   Reboot the Raspberry Pi: `sudo reboot`.
     *   Verify that your application starts automatically and all features work as expected (NFC reading, audio playback, button controls, LED feedback, battery monitoring if applicable).
     *   Check logs for any errors: `sudo journalctl -u storyteller.service -f` and your application-specific logs.
 
-**Phase 2: Prepare the Master Pi for Imaging**
-
-1.  **Clean Up:**
+2.  **Clean Up:**
     *   Remove unnecessary packages: `sudo apt autoremove -y`
     *   Clean package cache: `sudo apt clean`
     *   Clear bash history: `history -c && history -w`
@@ -118,7 +114,19 @@ The core idea is to set up one Raspberry Pi perfectly (the "master" Pi), then cr
         rm -f storyteller_error.log*
         ```
     *   Remove any test files or temporary data
-2.  **Wi-Fi Considerations for Gifts:**
+2.  **Clean Up:**
+    *   Remove unnecessary packages: `sudo apt autoremove -y`
+    *   Clean package cache: `sudo apt clean`
+    *   Clear bash history: `history -c && history -w`
+    *   Clear log files to start fresh:
+        ```bash
+        cd /home/pi/storiellai/src
+        rm -f storyteller.log*
+        rm -f storyteller_error.log*
+        ```
+    *   Remove any test files or temporary data
+
+3.  **Wi-Fi Considerations for Gifts:**
     *   **Option 1 (Simplest for recipient if credentials match):** If the master Pi is configured with the recipient's Wi-Fi, you're set.
     *   **Option 2 (Generic Setup):** Remove specific Wi-Fi credentials from `/etc/wpa_supplicant/wpa_supplicant.conf` before imaging. The recipient will need to connect a keyboard/monitor or use Ethernet to set up their Wi-Fi.
     *   **Option 3 (Advanced - Access Point Mode):** Configure the Pi to start as a Wi-Fi Access Point on first boot, allowing the user to connect to it and enter their credentials via a web page. This is more complex to set up.

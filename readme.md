@@ -11,18 +11,157 @@ description: A fully offline, NFC-triggered storytelling device for kids.
 
 ## Table of Contents
 
-1.  [Overview](#overview)
-2.  [How It Works](#how-it-works)
-3.  [Repo Layout](#repo-layout)
-4.  [Bill of Materials](#bill-of-materials)
-5.  [Hardware Setup](#hardware-setup)
-6.  [Software Setup](#software-setup)
-7.  [Adding New Stories](#adding-new-stories)
-8.  [Battery Management and Error Handling](#battery-management-and-error-handling)
-9.  [Usage](#usage)
-10. [Troubleshooting](#troubleshooting)
-11. [Future Ideas](#future-ideas)
-12. [Deploying to Multiple Devices (Creating a Master Image)](#deploying-to-multiple-devices)
+1.  [Quick Start Guide](#quick-start-guide) ⚡
+2.  [Mock vs. Real Hardware](#mock-vs-real-hardware) 🔧
+3.  [Overview](#overview)
+4.  [How It Works](#how-it-works)
+5.  [Repo Layout](#repo-layout)
+6.  [Bill of Materials](#bill-of-materials)
+7.  [Hardware Setup](#hardware-setup)
+8.  [Software Setup](#software-setup)
+9.  [Adding New Stories](#adding-new-stories)
+10. [Battery Management and Error Handling](#battery-management-and-error-handling)
+11. [Usage](#usage)
+12. [Troubleshooting](#troubleshooting)
+13. [Future Ideas](#future-ideas)
+14. [Deploying to Multiple Devices (Creating a Master Image)](#deploying-to-multiple-devices)
+
+---
+
+## Quick Start Guide
+
+### 🚀 First-Time Raspberry Pi Setup (After OS Flash)
+
+**Prerequisites:** Fresh Raspberry Pi OS flashed to SD card, Pi connected to internet, keyboard/monitor attached.
+
+Copy and paste these commands one by one:
+
+```bash
+# 1. Update system packages
+sudo apt update && sudo apt upgrade -y
+
+# 2. Install essential system packages
+sudo apt install -y git python3-pip python3-pygame libasound2-dev python3-dev libgpiod2
+
+# 3. Enable SPI interface (required for NFC reader and ADC)
+echo "Enabling SPI interface..."
+sudo raspi-config nonint do_spi 0
+
+# 4. Clone the project
+cd /home/pi
+git clone https://github.com/dimarconicola/storiellai.git
+cd storiellai
+
+# 5. Install Python dependencies (use --break-system-packages if needed on newer Pi OS)
+pip3 install -r requirements.txt
+# If above fails with externally-managed-environment error, use:
+# pip3 install -r requirements.txt --break-system-packages
+
+# 6. Test the software in mock mode (no hardware required)
+cd src
+python3 box.py
+```
+
+**Expected behavior:** The software should start with mock hardware, showing LED patterns in the console and responding to NFC card simulation. Press `Ctrl+C` to stop.
+
+### 🔧 Enable Real Hardware Mode
+
+Once your hardware is connected (see [Hardware Setup](#hardware-setup)), enable real hardware mode:
+
+```bash
+cd /home/pi/storiellai/src/hardware
+# Edit hal.py to enable real hardware
+sed -i 's/IS_RASPBERRY_PI = False/IS_RASPBERRY_PI = True/' hal.py
+
+# Verify the change
+grep "IS_RASPBERRY_PI" hal.py
+```
+
+### 📋 Set Up as System Service (Auto-start on boot)
+
+```bash
+cd /home/pi/storiellai
+sudo cp systemd/storyteller.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable storyteller.service
+sudo systemctl start storyteller.service
+
+# Check service status
+sudo systemctl status storyteller.service
+```
+
+---
+
+## Mock vs. Real Hardware
+
+The Storyteller Box software includes a **Hardware Abstraction Layer (HAL)** that allows you to:
+- **Develop and test** without physical hardware (mock mode)
+- **Run on actual Raspberry Pi** with connected components (real mode)
+
+### 🧪 Mock Hardware Mode (Default)
+
+**When to use:** Development, testing, or when you don't have physical hardware connected.
+
+**What it does:**
+- Simulates all hardware components (NFC reader, button, LED, ADC)
+- Prints hardware events to console instead of using GPIO
+- Returns simulated values (e.g., mock NFC card "MOCK_UID")
+- Safe to run on any computer (macOS, Windows, Linux)
+
+**Configuration:** `src/hardware/hal.py` has `IS_RASPBERRY_PI = False`
+
+**Testing mock mode:**
+```bash
+cd /home/pi/storiellai/src
+python3 box.py
+# You should see console messages like "[MOCK LED] Setting LED to..." and "[DEBUG] UIDReader returning MOCK_UID"
+```
+
+### ⚡ Real Hardware Mode
+
+**When to use:** When you have physical components wired to your Raspberry Pi.
+
+**What it does:**
+- Communicates with actual GPIO pins, SPI devices, and I2C components
+- Controls real LEDs, reads real button presses, scans actual NFC cards
+- Requires proper wiring and component connections
+
+**Configuration:** `src/hardware/hal.py` has `IS_RASPBERRY_PI = True`
+
+**Switching to real hardware mode:**
+```bash
+cd /home/pi/storiellai/src/hardware
+# Method 1: Use sed command
+sed -i 's/IS_RASPBERRY_PI = False/IS_RASPBERRY_PI = True/' hal.py
+
+# Method 2: Edit manually
+nano hal.py
+# Change line 12 from: IS_RASPBERRY_PI = False
+# To:                   IS_RASPBERRY_PI = True
+```
+
+### 🔍 Verifying Current Mode
+
+```bash
+cd /home/pi/storiellai/src/hardware
+grep "IS_RASPBERRY_PI" hal.py
+# Should show: IS_RASPBERRY_PI = True (for real hardware) or False (for mock)
+
+# Or check when running the software:
+cd /home/pi/storiellai/src
+python3 box.py
+# Look for console output:
+# Mock mode: "[HAL] Using mock implementations for hardware."
+# Real mode: No such message, instead shows actual GPIO initialization
+```
+
+### 🚨 Important Notes
+
+- **Always test in mock mode first** before connecting hardware
+- **Hardware damage can occur** if you enable real mode without proper wiring
+- **Mock mode is safe** - it cannot damage anything and works on any computer
+- **When sharing your project** with others, leave it in mock mode by default
+- **The workspace version** (this code) may be in mock mode while your Pi runs in real mode
 
 ---
 
@@ -204,6 +343,158 @@ For instructions on how to create a master SD card image to easily set up multip
 | **LED Button**        |                         |                                            |
 | LED+                  | GPIO24                 | LED control                               |
 | Button                | GPIO23                 | Button input                              |
+
+### 🔴 4-Pin Button with Integrated LED - Detailed Wiring
+
+**Component:** Illuminated momentary push button (typically has 4 pins: 2 for button, 2 for LED)
+
+#### Pin Identification
+Most 4-pin LED buttons have this layout:
+```
+    LED+    LED-
+     |       |
+   +---+   +---+
+   | 1 |   | 2 |  <- LED pins
+   +---+---+---+
+   | 3 |   | 4 |  <- Button pins  
+   +---+   +---+
+     |       |
+  BUTTON   BUTTON
+```
+
+#### Breadboard Wiring (Recommended for Testing)
+
+**Materials needed:**
+- Breadboard
+- 330Ω resistor (for LED current limiting)
+- 10kΩ resistor (for button pull-down, optional - Pi has internal pull-up/down)
+- Jumper wires
+
+**Step-by-step wiring:**
+
+1. **Insert button into breadboard:**
+   - Place button across the center gap of breadboard
+   - Pins 1,3 on one side, pins 2,4 on the other side
+
+2. **LED wiring (GPIO 24):**
+   ```
+   Pi GPIO 24 → 330Ω resistor → Button LED+ pin
+   Button LED- pin → Pi GND
+   ```
+
+3. **Button wiring (GPIO 23):**
+   ```
+   Pi GPIO 23 → Button pin (either button pin)
+   Other button pin → Pi GND
+   ```
+
+4. **Breadboard layout:**
+   ```
+   Breadboard rows (each number = 5 connected holes):
+   
+   Row A: [GPIO24]--[330Ω resistor]--[Button LED+]
+   Row B: [Button LED-]--[GND wire to Pi]
+   Row C: [GPIO23]--[Button pin 1]
+   Row D: [Button pin 2]--[GND wire to Pi]
+   ```
+
+#### Direct Wiring (Permanent Installation)
+
+**LED circuit:**
+```
+Raspberry Pi GPIO 24 → 330Ω resistor → Button LED+ (pin 1)
+Button LED- (pin 2) → Raspberry Pi GND
+```
+
+**Button circuit:**
+```
+Raspberry Pi GPIO 23 → Button pin (pin 3)
+Button pin (pin 4) → Raspberry Pi GND
+```
+
+#### Testing Your Button Wiring
+
+**Test the LED:**
+```bash
+# Turn LED on
+echo "24" > /sys/class/gpio/export
+echo "out" > /sys/class/gpio/gpio24/direction
+echo "1" > /sys/class/gpio/gpio24/value
+
+# Turn LED off
+echo "0" > /sys/class/gpio/gpio24/value
+
+# Cleanup
+echo "24" > /sys/class/gpio/unexport
+```
+
+**Test the button:**
+```bash
+# Set up button input
+echo "23" > /sys/class/gpio/export
+echo "in" > /sys/class/gpio/gpio23/direction
+
+# Read button state (press button while running this)
+watch -n 0.1 'cat /sys/class/gpio/gpio23/value'
+# Should show 1 when pressed, 0 when released
+
+# Cleanup
+echo "23" > /sys/class/gpio/unexport
+```
+
+**Python test script:**
+```python
+# Save as button_led_test.py
+import RPi.GPIO as GPIO
+import time
+
+LED_PIN = 24
+BUTTON_PIN = 23
+
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(LED_PIN, GPIO.OUT)
+GPIO.setup(BUTTON_PIN, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+
+print("Testing button and LED. Press Ctrl+C to exit.")
+print("Button should light LED when pressed.")
+
+try:
+    while True:
+        if GPIO.input(BUTTON_PIN):
+            GPIO.output(LED_PIN, GPIO.HIGH)
+            print("Button pressed - LED ON")
+        else:
+            GPIO.output(LED_PIN, GPIO.LOW)
+        time.sleep(0.1)
+except KeyboardInterrupt:
+    GPIO.cleanup()
+    print("\nTest completed.")
+```
+
+#### Troubleshooting Button/LED Issues
+
+**LED doesn't light up:**
+- Check resistor value (should be 220Ω-470Ω)
+- Verify LED polarity (LED+ to GPIO via resistor, LED- to GND)
+- Test GPIO 24 with multimeter
+- Try swapping LED+ and LED- connections
+
+**Button doesn't respond:**
+- Check button pin connections
+- Verify one button pin goes to GPIO 23, other to GND
+- Try swapping the two button pins
+- Test with multimeter - should show continuity when pressed
+
+**Breadboard connections:**
+- Ensure connections are in the same row (holes are connected horizontally)
+- Check that button pins span the center gap correctly
+- Verify jumper wires are fully inserted
+
+**Common mistakes:**
+- Using wrong resistor value for LED (too high = dim, too low = damage)
+- Connecting button pins to same side (they should be on opposite sides)
+- Forgetting current-limiting resistor for LED
+- Mixed up LED+ and LED- polarity
 | **Rotary Potentiometer** |                         |                                            |
 | Signal                | MCP3008 Channel 0      | Analog input via ADC                     |
 | **Battery Voltage Sense**| MCP3008 Channel 1 (example)| Connect to output of a voltage divider (e.g., 1:2) from powerbank 5V line. |
@@ -403,6 +694,67 @@ The offline version relies on pre-recorded audio files and JSON configurations.
 
 ## Troubleshooting
 
+### 🔧 Software Issues
+
+*   **"externally-managed-environment" error when installing packages:**
+    ```bash
+    # Use this flag on newer Raspberry Pi OS versions:
+    pip3 install -r requirements.txt --break-system-packages
+    ```
+
+*   **Mock vs. Real Hardware confusion:**
+    ```bash
+    # Check current mode:
+    cd /home/pi/storiellai/src/hardware
+    grep "IS_RASPBERRY_PI" hal.py
+    
+    # Switch to real hardware mode:
+    sed -i 's/IS_RASPBERRY_PI = False/IS_RASPBERRY_PI = True/' hal.py
+    
+    # Switch to mock mode (for development):
+    sed -i 's/IS_RASPBERRY_PI = True/IS_RASPBERRY_PI = False/' hal.py
+    ```
+
+*   **Script not running on boot:**
+    *   Check systemd service status: `sudo systemctl status storyteller.service`.
+    *   Check service logs: `journalctl -u storyteller.service`.
+    *   Verify paths in `storyteller.service` match your actual installation.
+
+*   **Unexpected errors or crashes:**
+    *   Check the structured logs for details: `cat src/storyteller.log`.
+    *   Look for error traces: `cat src/storyteller_error.log`.
+    *   If the error is reproducible, try running manually: `cd src && python box.py`.
+    *   Check if audio files exist and aren't corrupted.
+
+### 🔌 Hardware Issues
+
+*   **LED not working:**
+    *   **Check wiring:** LED+ to GPIO 24 via 330Ω resistor, LED- to GND
+    *   **Test GPIO output:**
+        ```bash
+        # Manual LED test:
+        echo "24" > /sys/class/gpio/export
+        echo "out" > /sys/class/gpio/gpio24/direction
+        echo "1" > /sys/class/gpio/gpio24/value  # LED on
+        echo "0" > /sys/class/gpio/gpio24/value  # LED off
+        echo "24" > /sys/class/gpio/unexport
+        ```
+    *   **Check polarity:** Try swapping LED+ and LED- connections
+    *   **Verify resistor:** Should be 220Ω-470Ω (higher = dimmer)
+
+*   **Button not working:**
+    *   **Check wiring:** One button pin to GPIO 23, other to GND
+    *   **Test button input:**
+        ```bash
+        # Manual button test:
+        echo "23" > /sys/class/gpio/export
+        echo "in" > /sys/class/gpio/gpio23/direction
+        watch -n 0.1 'cat /sys/class/gpio/gpio23/value'  # Press button
+        echo "23" > /sys/class/gpio/unexport
+        ```
+    *   **Try swapping:** Swap the two button pin connections
+    *   **Check breadboard:** Ensure button spans center gap correctly
+
 *   **No audio:**
     *   Check speaker and amplifier connections.
     *   Verify audio output settings in `raspi-config`.
@@ -421,27 +773,51 @@ The offline version relies on pre-recorded audio files and JSON configurations.
     *   Look for NFC reader errors in the log: `cat src/storyteller.log | grep UID`.
     *   Try creating a card with a simple numeric UID (e.g., "000001").
 
-*   **Script not running on boot:**
-    *   Check systemd service status: `sudo systemctl status storyteller.service`.
-    *   Check service logs: `journalctl -u storyteller.service`.
-    *   Verify paths in `storyteller.service` match your actual installation.
-
-*   **LED not working:**
-    *   Check the LED connection to the GPIO pin specified in `app_config.py`.
-    *   Verify the button's LED wiring (usually has a positive and ground connection).
-    *   Test with a simple Python script to toggle the LED.
-
 *   **Battery monitoring issues:**
     *   Verify the voltage divider is correctly connected to the MCP3008.
     *   Check the channel assignment in `time_utils.py`.
     *   Test the ADC with a simple script to read and print the voltage.
     *   Look for battery-related entries in the log: `cat src/storyteller.log | grep battery`.
 
-*   **Unexpected errors or crashes:**
-    *   Check the structured logs for details: `cat src/storyteller.log`.
-    *   Look for error traces: `cat src/storyteller_error.log`.
-    *   If the error is reproducible, try running manually: `cd src && python box.py`.
-    *   Check if audio files exist and aren't corrupted.
+### 🔍 Testing Commands Summary
+
+**Quick hardware test commands:**
+```bash
+# Test LED (GPIO 24):
+cd /home/pi/storiellai/src && python3 -c "
+import RPi.GPIO as GPIO
+import time
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(24, GPIO.OUT)
+for i in range(5):
+    GPIO.output(24, GPIO.HIGH)
+    time.sleep(0.5)
+    GPIO.output(24, GPIO.LOW)
+    time.sleep(0.5)
+GPIO.cleanup()
+print('LED test complete')
+"
+
+# Test button (GPIO 23):
+cd /home/pi/storiellai/src && python3 -c "
+import RPi.GPIO as GPIO
+import time
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(23, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+print('Press button for 5 seconds...')
+for i in range(50):
+    if GPIO.input(23):
+        print('Button pressed!')
+    time.sleep(0.1)
+GPIO.cleanup()
+"
+
+# Test software in mock mode:
+cd /home/pi/storiellai/src/hardware
+sed -i 's/IS_RASPBERRY_PI = True/IS_RASPBERRY_PI = False/' hal.py
+cd ../
+python3 box.py  # Should show mock messages
+```
 
 ---
 
