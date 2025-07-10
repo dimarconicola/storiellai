@@ -1,4 +1,4 @@
-#!/Users/nicoladimarco/code/storiellai/clean_env/bin/python3
+#!/home/nicoladimarco/storiellai/clean_env/bin/python3
 
 """Simple Python serial terminal
 """

@@ -1,4 +1,4 @@
-#!/Users/nicoladimarco/code/storiellai/clean_env/bin/python3
+#!/home/nicoladimarco/storiellai/clean_env/bin/python3
 # -*- coding: utf-8 -*-
 
 # Copyright (c) 2018-2024, Emmanuel Blot <emmanuel.blot@free.fr>
