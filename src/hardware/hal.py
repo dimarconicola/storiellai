@@ -45,13 +45,10 @@ if IS_RASPBERRY_PI:
             uid_str = "".join([hex(i)[2:] for i in uid])
             print(f"[DEBUG] Found card with UID: {uid_str}")
 
-            # Try to read data from the card
             try:
-                # Authenticate with the default key
                 if not pn532.mifare_classic_authenticate_block(uid, 4, 0x60, b'\xFF\xFF\xFF\xFF\xFF\xFF'):
                     print("[ERROR] Failed to authenticate block 4")
                     return uid_str, None
-                
                 data = pn532.mifare_classic_read_block(4)
                 if data:
                     text = data.decode('utf-8').strip('\x00')
@@ -60,17 +57,9 @@ if IS_RASPBERRY_PI:
                 else:
                     print("[DEBUG] No data found on card")
                     return uid_str, None
-
             except Exception as e:
                 print(f"[ERROR] Error reading from card: {e}")
                 return uid_str, None
-        
-        def read_uid(self):
-            """Legacy method that only returns the UID"""
-            uid = pn532.read_passive_target(timeout=0.5)
-            if uid is None:
-                return None
-            return "".join([hex(i)[2:] for i in uid])
 
         def cleanup(self):
             pass
