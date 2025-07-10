@@ -1,4 +1,8 @@
 RPi.GPIO
 pygame
-adafruit-circuitpython-mcp3008
+adafruit-circuitpython-mcp3xxx
 adafruit-circuitpython-pn532
+adafruit-blinka
+board
+busio
+digitalio

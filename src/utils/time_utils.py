@@ -7,10 +7,18 @@ Handles time-based logic and story selection based on time of day.
 import time
 import random
 import os
-from config.app_config import CALM_TIME_START, CALM_TIME_END
-from utils.story_utils import pick_story
-from utils.audio_utils import stop_bgm
-from hardware.hal import MCP3008, AnalogIn
+from src.config.app_config import CALM_TIME_START, CALM_TIME_END
+from src.utils.story_utils import pick_story
+from src.utils.audio_utils import stop_bgm
+from src.utils.log_utils import logger
+
+# Import hardware components with fallback
+try:
+    from hardware.hal import MCP3008, AnalogIn, IS_RASPBERRY_PI
+except ImportError:
+    MCP3008 = None
+    AnalogIn = None
+    IS_RASPBERRY_PI = False
 
 
 def is_calm_time():
@@ -68,15 +76,24 @@ LOW_BATTERY_THRESHOLD = 3.3  # Voltage level for low battery warning
 CRITICAL_BATTERY_THRESHOLD = 3.0  # Voltage level for critical battery shutdown
 
 # Initialize MCP3008 ADC (assuming channel 0 is used for battery voltage)
-mcp = MCP3008()
-battery_channel = AnalogIn(mcp, 0)
+if IS_RASPBERRY_PI and MCP3008 and AnalogIn:
+    mcp = MCP3008()
+    battery_channel = AnalogIn(mcp, 0)
+else:
+    mcp = None
+    battery_channel = None
 
 
 def read_battery_voltage():
     """Read the battery voltage from the ADC."""
-    voltage = battery_channel.voltage * 2  # Adjust for voltage divider
-    print(f"[DEBUG] Battery voltage: {voltage:.2f}V")
-    return voltage
+    if battery_channel:
+        voltage = battery_channel.voltage * 2  # Adjust for voltage divider
+        print(f"[DEBUG] Battery voltage: {voltage:.2f}V")
+        return voltage
+    else:
+        # Mock battery voltage for testing
+        print(f"[DEBUG] Mock battery voltage: 4.2V")
+        return 4.2
 
 
 # Function to handle battery management
@@ -103,7 +120,6 @@ def handle_battery_status(adc, led_manager=None):
         try:
             voltage = read_battery_voltage()
         except Exception as e:
-            from utils.log_utils import logger
             logger.error(f"Failed to read battery voltage: {e}")
             voltage = 3.8  # Default to a safe value on error
     
@@ -114,7 +130,6 @@ def handle_battery_status(adc, led_manager=None):
     status = 'normal'
     if voltage <= CRITICAL_BATTERY_THRESHOLD:
         status = 'critical'
-        from utils.log_utils import logger
         logger.warning(f"Critical battery level ({voltage:.2f}V, {percentage:.0f}%)! Initiating shutdown...")
         
         # Show critical battery warning if LED manager available
@@ -138,7 +153,6 @@ def handle_battery_status(adc, led_manager=None):
             
     elif voltage <= LOW_BATTERY_THRESHOLD:
         status = 'low'
-        from utils.log_utils import logger
         logger.warning(f"Low battery level ({voltage:.2f}V, {percentage:.0f}%)! Please recharge soon.")
         
         # Show low battery warning if LED manager available

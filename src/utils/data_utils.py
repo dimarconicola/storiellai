@@ -6,9 +6,10 @@ Handles JSON loading, file verification, and data validation.
 
 import json
 from pathlib import Path
-from config.app_config import STORIES_FOLDER, BGM_FOLDER, AUDIO_FOLDER, AVAILABLE_TONES
+from src.config.app_config import STORIES_FOLDER, BGM_FOLDER, AUDIO_FOLDER, AVAILABLE_TONES
 import logging
-from utils.log_utils import logger
+from src.utils.log_utils import logger
+import os
 
 
 # Global card data cache
@@ -37,23 +38,23 @@ def preload_card_data():
     logger.info(f"Preloaded {cards_loaded} card data files")
 
 
-def load_card_stories(uid: str) -> dict | None:
+def load_card_stories(story_id: str) -> dict | None:
     """
-    Load stories for a card from JSON file or cache.
+    Load stories for a card from a JSON file or cache based on a story ID.
     
     Args:
-        uid (str): Card UID
+        story_id (str): The story ID (e.g., "000000"), read from the NFC card text.
         
     Returns:
         dict or None: Card data if found and valid, None otherwise
     """
     # First check cache
-    if uid in CARD_DATA_CACHE:
-        logger.debug(f"Using cached card data for {uid}")
-        return CARD_DATA_CACHE[uid]
+    if story_id in CARD_DATA_CACHE:
+        logger.debug(f"Using cached card data for {story_id}")
+        return CARD_DATA_CACHE[story_id]
     
     # If not in cache, load from file
-    path = STORIES_FOLDER / f"card_{uid}.json"
+    path = STORIES_FOLDER / f"card_{story_id}.json"
     logger.debug(f"Looking for JSON file: {path}")
     
     if not path.exists():
@@ -63,9 +64,9 @@ def load_card_stories(uid: str) -> dict | None:
     try:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
-            logger.info(f"Successfully loaded JSON for card {uid}")
+            logger.info(f"Successfully loaded JSON for story ID {story_id}")
             # Add to cache for future use
-            CARD_DATA_CACHE[uid] = data
+            CARD_DATA_CACHE[story_id] = data
             return data
     except json.JSONDecodeError as e:
         logger.error(f"Invalid JSON format in {path}: {e}")

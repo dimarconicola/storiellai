@@ -11,15 +11,16 @@ from typing import Optional, Dict, Any
 import json
 import logging
 
-from config.app_config import (
+from src.config.app_config import (
     AUDIO_FREQUENCY, AUDIO_BUFFER, AUDIO_CHANNELS, MAX_AUDIO_CHANNELS,
     MIN_SOFTWARE_VOLUME, MAX_SOFTWARE_VOLUME, BGM_FOLDER, AUDIO_FOLDER, STORIES_FOLDER
 )
-from utils.bgm_utils import (
+from src.utils.bgm_utils import (
     fade_bgm_to, stop_bgm,
     BGM_INTRO_VOLUME, BGM_NARRATION_VOLUME, BGM_OUTRO_VOLUME
 )
-from utils.log_utils import logger
+from src.utils.log_utils import logger
+from src.utils.data_utils import load_card_stories
 
 # Audio cache to reduce loading times
 BGM_CACHE: Dict[str, pygame.mixer.Sound] = {}
@@ -88,7 +89,6 @@ def preload_bgm():
 
 def preload_narration(uid):
     """Preload narration files for a specific card"""
-    from utils.data_utils import load_card_stories
     
     logger.debug(f"Preloading narration for card {uid}...")
     card_data = load_card_stories(uid)
@@ -124,7 +124,6 @@ def preload_narration_async(uid):
     """
     try:
         logger.debug(f"[ASYNC] Preloading narration for card {uid}...")
-        from utils.data_utils import load_card_stories
         
         card_data = load_card_stories(uid)
         if not card_data or not card_data.get("stories"):

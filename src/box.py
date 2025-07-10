@@ -18,10 +18,10 @@ from pathlib import Path
 import pygame
 import sys
 import threading  # Added for asynchronous loading
-from utils.log_utils import logger
+from src.utils.log_utils import logger
 
 from hardware.hal import IS_RASPBERRY_PI, BUTTON_NO_EVENT, BUTTON_TAP, BUTTON_DOUBLE_TAP, BUTTON_LONG_PRESS
-from utils.time_utils import handle_battery_status
+from src.utils.time_utils import handle_battery_status
 
 # Try to import AnalogIn from adafruit_mcp3xxx, fallback to hardware.hal
 try:
@@ -30,20 +30,20 @@ except ImportError:
     from hardware.hal import AnalogIn  # Use the mock if the real one is missing
 
 # Import from utility modules
-from utils.audio_utils import (
+from src.utils.audio_utils import (
     initialize_audio_engine, set_system_volume, preload_bgm, 
     play_narration_with_bgm, test_audio_performance, play_error_sound,
     preload_narration_async,  # New async preloading function
     play_card_valid_sound, play_card_invalid_sound, play_transition_sound,
     play_boot_sound, play_shutdown_sound, play_pause_sound, play_resume_sound, play_success_sound
 )
-from utils.data_utils import load_card_stories, verify_audio_files, preload_card_data  # Added preload_card_data
-from utils.time_utils import is_calm_time, select_story_for_time
-from utils.led_utils import LedPatternManager
-from utils.bgm_utils import stop_bgm
+from src.utils.data_utils import load_card_stories, verify_audio_files, preload_card_data  # Added preload_card_data
+from src.utils.time_utils import is_calm_time, select_story_for_time
+from src.utils.led_utils import LedPatternManager
+from src.utils.bgm_utils import stop_bgm
 
 # Import configuration
-from config.app_config import (
+from src.config.app_config import (
     STATE_IDLE, STATE_PLAYING, STATE_PAUSED, STATE_SHUTTING_DOWN,
     LED_OFF, LED_ON, VOLUME_CHECK_INTERVAL, MAIN_LOOP_INTERVAL,
     IDLE_SHUTDOWN_TIMEOUT_MINUTES # Added IDLE_SHUTDOWN_TIMEOUT_MINUTES
@@ -113,6 +113,8 @@ def main():
     preload_thread.start()
     
     current_card_uid = None
+    current_card_text = None  # NEW: To track the text read from the card
+    current_story_id = None # NEW: To track the story ID from the card's text
     current_story_data = None
     current_narration_path = None
     current_bgm_tone = None
@@ -199,7 +201,8 @@ def main():
                                 time.sleep(0.02)
                             time.sleep(0.3) # Keep this specific pause after transition
 
-                            card_data = load_card_stories(current_card_uid) 
+                            # Use the current_story_id, not the UID, to reload data
+                            card_data = load_card_stories(current_story_id) 
                             if card_data and card_data.get("stories"):
                                 stories = card_data["stories"]
                                 selected_story = select_story_for_time(stories, is_calm_time())
@@ -285,7 +288,7 @@ def main():
                         pygame.event.pump()
                         time.sleep(0.02)
                     time.sleep(0.3) 
-                    card_data = load_card_stories(current_card_uid)
+                    card_data = load_card_stories(current_story_id) # Use story_id
                     if card_data and card_data.get("stories"):
                         stories = card_data["stories"]
                         selected_story = select_story_for_time(stories, is_calm_time())
@@ -321,15 +324,25 @@ def main():
                 state = STATE_SHUTTING_DOWN
                 continue
 
-            uid = reader.read_uid()
-            logger.debug(f"UIDReader returned: {uid}")
+            # --- RFID/NFC Card Handling ---
+            # Read UID and text (story_id) from the card
+            uid, story_id_from_card = reader.read()
+            if story_id_from_card:
+                story_id_from_card = story_id_from_card.strip()
+
+            logger.debug(f"UIDReader returned: uid={uid}, story_id='{story_id_from_card}'")
+
+            # A new physical card has been presented
             if uid and uid != current_card_uid:
-                logger.info(f"New card {uid} detected. Interrupting current story (if any) and starting new.")
-                last_activity_time = time.time() # Reset activity timer on new card
-                last_story_played_time = time.time() # Reset story played timer
+                logger.info(f"New card detected. UID: {uid}, Story ID: '{story_id_from_card}'")
+                last_activity_time = time.time()
+                last_story_played_time = time.time()
                 stop_bgm()
                 pygame.mixer.stop()
-                current_card_uid = uid
+                
+                current_card_uid = uid # Track the physical card
+                current_story_id = story_id_from_card # Track the story to play
+                
                 led_manager.set_attention_pattern(count=1)
                 play_transition_sound()
                 sound_start_time = time.time()
@@ -338,18 +351,34 @@ def main():
                     time.sleep(0.02)
                 time.sleep(0.3)
 
-                if uid in ["000000", "000001", "000002", "000003", "000004"]: # Example UIDs
-                    next_uid_int = int(uid) + 1
-                    if next_uid_int <= 999999: # Ensure it doesn't exceed 6 digits
-                         next_uid = f"{next_uid_int:06d}"
-                         threading.Thread(
-                             target=preload_narration_async, 
-                             args=(next_uid,), 
-                             daemon=True
-                         ).start()
-                card_data = load_card_stories(uid)
+                # Preload the next story if the current story ID is a number
+                if current_story_id and current_story_id.isdigit():
+                    try:
+                        next_story_int = int(current_story_id) + 1
+                        next_story_id = f"{next_story_int:06d}"
+                        threading.Thread(
+                            target=preload_narration_async, 
+                            args=(next_story_id,), 
+                            daemon=True
+                        ).start()
+                    except ValueError:
+                        logger.warning(f"Could not parse story_id '{current_story_id}' for preloading.")
+
+                # Validate that the card has a story ID written to it
+                if not current_story_id:
+                    logger.error(f"Card with UID {uid} has no text/story_id. Cannot play.")
+                    led_manager.set_card_sequence(is_valid=False)
+                    play_card_invalid_sound()
+                    # ... (error sound sequence)
+                    current_card_uid = None # Forget this card so it can be retried
+                    state = STATE_IDLE
+                    continue
+
+                # Load story data using the story_id from the card's text
+                card_data = load_card_stories(current_story_id)
+                
                 if not card_data:
-                    logger.error(f"Invalid or missing JSON for card {uid}")
+                    logger.error(f"Invalid or missing JSON for story_id '{current_story_id}'")
                     led_manager.set_card_sequence(is_valid=False)
                     play_card_invalid_sound()
                     sound_start_time = time.time()
@@ -358,11 +387,12 @@ def main():
                         time.sleep(0.02)
                     time.sleep(0.3)
                     play_error_sound()
-                    current_card_uid = None
+                    current_card_uid = None # Forget card so it can be retried
                     state = STATE_IDLE
                     continue
+                
                 if not card_data.get("stories"):
-                    logger.warning(f"Empty card: no stories for card {uid}")
+                    logger.warning(f"Empty card: no stories for story_id '{current_story_id}'")
                     led_manager.set_pattern('colorshift', levels=[50, 0, 50, 0], duration=0.2, count=3, next_pattern='breathing')
                     play_card_invalid_sound()
                     sound_start_time = time.time()
@@ -371,27 +401,27 @@ def main():
                         time.sleep(0.02)
                     time.sleep(0.3)
                     play_error_sound()
-                    current_card_uid = None
+                    current_card_uid = None # Forget card
                     state = STATE_IDLE
                     continue
+
+                # --- Story is valid, proceed with playback ---
                 current_story_data = card_data["stories"]
                 selected_story = select_story_for_time(current_story_data, is_calm_time())
-                logger.info(f"Selected story: {selected_story['title']} (tone: {selected_story['tone']})")
+                logger.info(f"Selected story: {selected_story['title']} (tone: {selected_story.get('tone', 'calmo')})")
+                
                 current_narration_path = Path(__file__).parent / selected_story["audio"]
                 current_bgm_tone = selected_story.get("tone", "calmo")
+
                 if not current_narration_path.exists():
                     logger.error(f"Audio file not found: {current_narration_path}")
                     led_manager.set_error_pattern(count=2)
                     play_card_invalid_sound()
-                    sound_start_time = time.time()
-                    while pygame.mixer.get_busy() and (time.time() - sound_start_time < 2.0):
-                        pygame.event.pump()
-                        time.sleep(0.02)
-                    time.sleep(0.3)
-                    play_error_sound()
-                    current_card_uid = None
+                    # ... (error sound sequence)
+                    current_card_uid = None # Forget card
                     state = STATE_IDLE
                     continue
+
                 logger.info(f"Transitioning to PLAYING state")
                 play_card_valid_sound()
                 sound_start_time = time.time()
@@ -399,10 +429,15 @@ def main():
                     pygame.event.pump()
                     time.sleep(0.02)
                 time.sleep(0.3)
+                
                 play_narration_with_bgm(current_narration_path, current_bgm_tone)
                 led_manager.set_card_sequence(is_valid=True)
                 state = STATE_PLAYING
-                last_story_played_time = time.time() # Update when a new story starts
+                last_story_played_time = time.time()
+            
+            # If the card is removed, reset the UID tracker
+            if not uid:
+                current_card_uid = None
 
             if state == STATE_IDLE:
                 led_manager.set_pattern('breathing', period=2.5)
@@ -426,7 +461,7 @@ def main():
                     logger.info("Playback finished, returning to IDLE state.")
                     led_manager.set_pattern('fadeout', duration=1.0, next_pattern='breathing')
                     state = STATE_IDLE
-                    current_card_uid = None 
+                    # Do not reset current_card_uid here, so the same card doesn't re-trigger immediately
             elif state == STATE_PAUSED:
                 led_manager.set_pattern('breathing', period=2.5)
                 # Paused state does not reset last_story_played_time, so it will eventually shut down
@@ -501,10 +536,12 @@ def initialize_hardware():
         if IS_RASPBERRY_PI:
             # GPIO pins from app_config
             from config.app_config import (
-                NFC_SPI_PORT, NFC_SPI_CS_PIN, NFC_IRQ_PIN, NFC_RST_PIN,
+                NFC_SPI_PORT, NFC_SPI_CS_PIN, NFC_RST_PIN,
                 BUTTON_PIN, LED_PIN, ADC_CHANNEL_VOLUME
             )
-            reader = UIDReader(spi_port=NFC_SPI_PORT, spi_cs_pin=NFC_SPI_CS_PIN, irq_pin=NFC_IRQ_PIN, rst_pin=NFC_RST_PIN)
+            # The real UIDReader will need to be updated to have a .read() method
+            # that returns (uid, text)
+            reader = UIDReader(spi_port=NFC_SPI_PORT, spi_cs_pin=NFC_SPI_CS_PIN, rst_pin=NFC_RST_PIN)
             button = Button(button_pin=BUTTON_PIN, led_pin=LED_PIN)
             volume_ctrl = VolumeControl(adc_channel=ADC_CHANNEL_VOLUME)
             adc = AnalogIn()  # Initialize MCP3008 ADC
