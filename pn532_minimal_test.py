@@ -1,9 +1,11 @@
 import board
 import busio
-from adafruit_pn532.i2c import PN532_I2C
+import digitalio
+from adafruit_pn532.spi import PN532_SPI
 
-i2c = busio.I2C(board.SCL, board.SDA)
-pn532 = PN532_I2C(i2c, debug=False)
+spi = busio.SPI(board.SCK, board.MOSI, board.MISO)
+cs_pin = digitalio.DigitalInOut(board.D8)  # GPIO8 (Pin 24)
+pn532 = PN532_SPI(spi, cs_pin, debug=False)
 
 firmware_version = pn532.firmware_version
 if firmware_version:
